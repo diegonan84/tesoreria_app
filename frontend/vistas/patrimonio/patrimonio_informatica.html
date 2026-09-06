@@ -63,6 +63,15 @@
                     </select>
                 </div>
 
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px;">Destino (Lugar) — opcional</label>
+                    <input type="text" id="asignar-destino" list="lista-destinos"
+                           placeholder="Elegí un lugar o escribí uno nuevo (ej: Depósito Central)..."
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <datalist id="lista-destinos"></datalist>
+                    <small style="color: #666; font-size: 11px;">Si elegís un usuario, el lugar se limpia (son excluyentes).</small>
+                </div>
+
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px;">Ubicación Física (Puesto)</label>
                     <input type="text" id="asignar-puesto" placeholder="Ej: PB1, 875, HOME..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">

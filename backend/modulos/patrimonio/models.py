@@ -46,7 +46,9 @@ class Patrimonio(Base):
     numero_inventario_monitor: Mapped[str] = mapped_column(String(255), nullable=True)
 # ✨ NUEVOS CAMPOS PARA ASIGNACIÓN RELACIONAL ✨
     usuario_id: Mapped[int] = mapped_column(Integer, ForeignKey("usuarios.id"), nullable=True)
-    responsable = relationship("User", backref="equipos_asignados")
+    destino_id: Mapped[int] = mapped_column(Integer, ForeignKey("destinos.id"), nullable=True)
+    responsable = relationship("User", foreign_keys=[usuario_id], backref="equipos_asignados")
+    destino = relationship("Destino", foreign_keys=[destino_id])
     # --- Campos de Auditoría y Sistema (Intactos) ---
     fecha_alta: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     fecha_modificacion: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -93,3 +95,16 @@ class PatrimonioImportacion(Base):
     cantidad_altas: Mapped[int] = mapped_column(Integer, default=0)
     cantidad_modificaciones: Mapped[int] = mapped_column(Integer, default=0)
     cantidad_omitidos: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Destino(Base):
+    """Lugar/institucion de destino de los elementos patrimoniales.
+    Complementa al usuario: un bien puede estar a cargo de una persona (usuario_id)
+    o situado en un lugar físico (destino_id)."""
+    __tablename__ = "destinos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    reparticion: Mapped[str] = mapped_column(String(255), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

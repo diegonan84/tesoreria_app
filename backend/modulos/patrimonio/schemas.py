@@ -117,8 +117,12 @@ class PatrimonioResponse(PatrimonioBase):
     fecha_alta: datetime
     fecha_modificacion: datetime
     usuario_modificacion: str
+    usuario_id: Optional[int] = None
+    destino_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 class AsignarEquipoRequest(BaseModel):
     usuario_id: Optional[int] = None
-    puesto: Optional[str] = None    
+    puesto: Optional[str] = None
+    destino_id: Optional[int] = None
+    destino_nuevo: Optional[str] = None    

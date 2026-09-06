@@ -131,6 +131,9 @@ def serve_patrimonio_codigos(): return FileResponse("frontend/vistas/patrimonio/
 @app.get("/patrimonio-reportes")
 def serve_patrimonio_reportes(): return FileResponse("frontend/vistas/patrimonio/patrimonio_reportes.html")
 
+@app.get("/consulta-asignaciones")
+def serve_consulta_asignaciones(): return FileResponse("frontend/vistas/patrimonio/consulta_asignaciones.html")
+
 
 # --------------------------------------------------
 # RSS PROXY (noticias con imágenes estilo MSN, fuente random)

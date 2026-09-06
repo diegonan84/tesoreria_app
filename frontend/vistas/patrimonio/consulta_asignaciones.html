@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elementos por Usuario o Destino | Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/patrimonio.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <div class="main-layout">
+        <main class="patrimonio-container" style="margin-left: 260px; padding: 20px;">
+
+            <h2 style="margin: 0 0 6px 0;">Elementos por Usuario o Destino</h2>
+            <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">
+                Listado completo: solo se contabilizan y muestran los elementos con puesto <strong>HOME</strong> (teletrabajo).
+            </p>
+
+            <!-- Búsqueda -->
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="input-buscar-unificado" placeholder="Buscar por usuario (nombre, CUIL, repartición, sector, puesto) o lugar (nombre, repartición)..."
+                       style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 380px;">
+                <button id="btn-buscar-unificado" class="btn-patrimonio">Buscar</button>
+                <button id="btn-limpiar-unificado" class="btn-patrimonio" style="background: #6c757d;">Limpiar</button>
+                <span id="badge-total-unificado" style="background-color: #e0e6e8; color: #1a3644; padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: bold; display: none;"></span>
+                <button id="btn-reconciliar" class="btn-patrimonio" style="background: #28a745; margin-left: auto;">Vincular datos existentes</button>
+            </div>
+
+            <!-- Lista unificada de usuarios y destinos -->
+            <table class="patrimonio-table" id="tabla-unificado" style="margin-bottom: 30px;">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Nombre</th>
+                        <th>Detalle</th>
+                        <th style="text-align: center;">En HOME</th>
+                        <th style="text-align: center;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-unificado-body">
+                    <tr><td colspan="5" style="text-align: center;">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </main>
+    </div>
+
+    <!-- Modal de detalle: elementos con puesto HOME del usuario/lugar seleccionado -->
+    <div id="modal-detalle-asign" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: flex-start; overflow-y: auto; padding: 30px 0;">
+        <div style="background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 1100px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
+                <h3 id="titulo-detalle" style="margin: 0; color: #1a3644;"></h3>
+                <button type="button" class="btn-patrimonio" style="background: #6c757d;" onclick="cerrarModalDetalle()">Cerrar ✕</button>
+            </div>
+            <table class="patrimonio-table" id="tabla-detalle">
+                <thead>
+                    <tr>
+                        <th>N° Inventario</th>
+                        <th>Tipo</th>
+                        <th>Descripción</th>
+                        <th>Marca / Modelo</th>
+                        <th>Serie</th>
+                        <th>Nombre Equipo</th>
+                        <th>Puesto</th>
+                        <th>Año</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-detalle-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/consulta_asignaciones.js"></script>
+</body>
+</html>

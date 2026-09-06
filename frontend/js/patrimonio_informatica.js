@@ -185,7 +185,7 @@ function renderizarTabla() {
                     <div style="display: flex; flex-direction: column; gap: 4px;">
                         <button class="btn-patrimonio" style="background-color: #007bff; font-size: 11px;" onclick="PatrimonioModulo.editarBien('${bien.numero_inventario}')">Editar</button>
                         <button class="btn-patrimonio" style="background-color: #17a2b8; font-size: 11px;" onclick="PatrimonioModulo.verHistorial('${bien.numero_inventario}')">Historial</button>
-                        <button class="btn-patrimonio" style="background-color: #28a745; font-size: 11px;" onclick="abrirModalAsignar('${escapeHTML(bien.numero_inventario)}', '${escapeHTML(bien.usuario_id || '')}', '${escapeHTML(bien.puesto || '')}')">Asignar</button>
+                        <button class="btn-patrimonio" style="background-color: #28a745; font-size: 11px;" onclick="abrirModalAsignar('${escapeHTML(bien.numero_inventario)}', '${escapeHTML(bien.usuario_id || '')}', '${escapeHTML(bien.puesto || '')}', '${escapeHTML((!bien.usuario_id && bien.usuario_destino) ? bien.usuario_destino : '')}')">Asignar</button>
                     </div>
                 `;
             } else {
@@ -226,22 +226,59 @@ async function cargarUsuariosSelect() {
     }
 }
 
-async function abrirModalAsignar(numero_inventario, usuario_id_actual, puesto_actual) {
+async function cargarDestinosDatalist() {
+    const input = document.getElementById("asignar-destino");
+    const datalist = document.getElementById("lista-destinos");
+    if (!datalist) return;
+    try {
+        const res = await fetch(`${API_BASE}/destinos`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const data = await res.json();
+        datalist.innerHTML = '';
+        (data.destinos || []).forEach(d => {
+            const option = document.createElement("option");
+            option.value = d.nombre;
+            datalist.appendChild(option);
+        });
+    } catch (e) {
+        console.error("Error cargando destinos", e);
+    }
+}
+
+// Guardas null-safe: si el elemento aún no existe en el DOM (ej. cache viejo),
+// no rompemos el flujo.
+function valModal(id, valor) {
+    const el = document.getElementById(id);
+    if (el) el.value = valor;
+}
+
+function leerValor(id) {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+}
+
+async function abrirModalAsignar(numero_inventario, usuario_id_actual, puesto_actual, destino_actual) {
     inventarioSeleccionado = numero_inventario;
     document.getElementById("asignar-nro-inv").innerText = numero_inventario;
     
     await cargarUsuariosSelect();
+    await cargarDestinosDatalist();
     
     // Auto-completar con la info actual (si la tiene)
-    document.getElementById("asignar-usuario").value = (usuario_id_actual && usuario_id_actual !== 'null') ? usuario_id_actual : "";
-    document.getElementById("asignar-puesto").value = (puesto_actual && puesto_actual !== 'null') ? puesto_actual : "";
+    valModal("asignar-usuario", (usuario_id_actual && usuario_id_actual !== 'null') ? usuario_id_actual : "");
+    valModal("asignar-puesto", (puesto_actual && puesto_actual !== 'null') ? puesto_actual : "");
+    valModal("asignar-destino", (destino_actual && destino_actual !== 'null') ? destino_actual : "");
     
-    document.getElementById("modal-asignar").style.display = "flex";
+    const modal = document.getElementById("modal-asignar");
+    if (modal) modal.style.display = "flex";
 }
 
 function cerrarModalAsignar() {
-    document.getElementById("modal-asignar").style.display = "none";
-    document.getElementById("form-asignar").reset();
+    const modal = document.getElementById("modal-asignar");
+    if (modal) modal.style.display = "none";
+    const form = document.getElementById("form-asignar");
+    if (form) form.reset();
     inventarioSeleccionado = null;
 }
 
@@ -288,13 +325,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // ✨ LISTENER PARA EL FORMULARIO DE ASIGNACIÓN ✨
     const formAsignar = document.getElementById("form-asignar");
     if (formAsignar) {
+        // Persona y lugar son excluyentes en la asignación
+        const selectUsuario = document.getElementById("asignar-usuario");
+        const inputDestino = document.getElementById("asignar-destino");
+        if (selectUsuario && inputDestino) {
+            selectUsuario.addEventListener("change", () => {
+                if (selectUsuario.value) inputDestino.value = "";
+            });
+            inputDestino.addEventListener("input", () => {
+                if (inputDestino.value.trim()) selectUsuario.value = "";
+            });
+        }
+
         formAsignar.addEventListener("submit", async (e) => {
             e.preventDefault();
             if (!inventarioSeleccionado) return;
 
             const datos = {
-                usuario_id: document.getElementById("asignar-usuario").value ? parseInt(document.getElementById("asignar-usuario").value) : null,
-                puesto: document.getElementById("asignar-puesto").value.trim() || null
+                usuario_id: leerValor("asignar-usuario") ? parseInt(leerValor("asignar-usuario")) : null,
+                puesto: leerValor("asignar-puesto").trim() || null,
+                destino_nuevo: leerValor("asignar-destino").trim() || null
             };
 
             const btnSubmit = formAsignar.querySelector('button[type="submit"]');

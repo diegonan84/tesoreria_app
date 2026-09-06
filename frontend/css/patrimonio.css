@@ -42,6 +42,11 @@
     border-radius: 4px;
     background-color: #007bff;
     color: white;
+    display: inline-block;
+    text-decoration: none;
+    font: inherit;
+    line-height: 1.2;
+    box-sizing: border-box;
 }
 /* ============================================================================ */
 /* ESTILOS DE LA TABLA DE INFORMÁTICA                                           */

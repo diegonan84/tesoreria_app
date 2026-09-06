@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Query, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Query, File, UploadFile, HTTPException, Form
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
 from typing import List, Optional
 from fastapi.responses import StreamingResponse
 from datetime import datetime
@@ -12,7 +13,7 @@ from backend.modulos.auth.dependencies import verificar_usuario_autenticado
 from backend.modulos.auditoria.service import registrar_evento
 
 from . import schemas
-from .service import PatrimonioService
+from .service import PatrimonioService, es_nombre_persona
 from .dependencies import get_db, get_client_ip, get_current_user
 
 # ✨ IMPORTS PARA LOS CÓDIGOS DE BARRAS ✨
@@ -139,6 +140,75 @@ def listar_patrimonio(
     return service.get_all(skip=skip, limit=limit, estado=estado, busqueda=busqueda, desde=desde, hasta=hasta, tipo=tipo, anio=anio, rubro=rubro, sort_by=sort_by, orden=orden)
 
 
+@router.get("/destinos")
+def listar_destinos(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    """Lista de lugares de destino con la cantidad de elementos activos en cada uno."""
+    query = db.query(models.Destino).filter(models.Destino.activo == True)
+
+    if buscar and buscar.strip():
+        termino = f"%{buscar.strip()}%"
+        query = query.filter(or_(
+            models.Destino.nombre.ilike(termino),
+            models.Destino.reparticion.ilike(termino),
+        ))
+
+    destinos = query.order_by(models.Destino.nombre).all()
+
+    resultado = []
+    for d in destinos:
+        cantidad = db.query(models.Patrimonio).filter(
+            models.Patrimonio.destino_id == d.id,
+            models.Patrimonio.activo == True
+        ).count()
+        resultado.append({
+            "id": d.id,
+            "nombre": d.nombre,
+            "reparticion": d.reparticion or "",
+            "cantidad": cantidad,
+        })
+
+    return {"destinos": resultado}
+
+
+class DestinoCreate(BaseModel):
+    nombre: str
+    reparticion: Optional[str] = None
+
+
+@router.post("/destinos")
+def crear_destino(
+    datos: DestinoCreate,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    servicio = PatrimonioService(db)
+    destino = servicio._resolver_destino_por_nombre(datos.nombre, reparticion=datos.reparticion, crear=True)
+    if destino.reparticion is None and datos.reparticion:
+        destino.reparticion = datos.reparticion
+    db.commit()
+    return {"id": destino.id, "nombre": destino.nombre, "reparticion": destino.reparticion or ""}
+
+
+@router.put("/destinos/{destino_id}")
+def actualizar_destino(
+    destino_id: int,
+    datos: DestinoCreate,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    destino = db.query(models.Destino).filter(models.Destino.id == destino_id).first()
+    if not destino:
+        raise HTTPException(status_code=404, detail="Destino no encontrado")
+    destino.nombre = datos.nombre.strip()
+    destino.reparticion = datos.reparticion
+    db.commit()
+    return {"id": destino.id, "nombre": destino.nombre, "reparticion": destino.reparticion or ""}
+
+
 @router.get("/{numero}", response_model=schemas.PatrimonioResponse)
 def obtener_patrimonio(
     numero: str, 
@@ -229,13 +299,14 @@ async def importar_excel(
     request: Request = None,
     db: Session = Depends(get_db),
     usuario_actual: str = Depends(JWT_DEPENDENCY),
-    ip: str = Depends(get_client_ip)
+    ip: str = Depends(get_client_ip),
+    reactivar_desactualizados: bool = Form(False)
 ):
     if not file.filename.endswith(('.xls', '.xlsx')):
         raise HTTPException(status_code=400, detail="El archivo debe ser formato Excel (.xls o .xlsx)")
 
     service = PatrimonioService(db)
-    resultado = await service.importar_excel(file, usuario=usuario_actual, ip=ip)
+    resultado = await service.importar_excel(file, usuario=usuario_actual, ip=ip, reactivar_desactualizados=reactivar_desactualizados)
 
     uid = _obtener_usuario_id(db, usuario_actual)
     if uid:
@@ -383,28 +454,334 @@ def asignar_equipo_endpoint(
         usuario_id=datos.usuario_id, 
         puesto=datos.puesto, 
         usuario_admin=usuario_actual, 
-        ip=ip
+        ip=ip,
+        destino_id=datos.destino_id,
+        destino_nuevo=datos.destino_nuevo
     )
 
     uid = _obtener_usuario_id(db, usuario_actual)
     if uid:
         registrar_evento(
             db, usuario_id=uid, accion="ASIGNAR_EQUIPO",
-            detalle=f"Equipo {numero} asignado al usuario ID {datos.usuario_id} en puesto {datos.puesto}",
+            detalle=f"Equipo {numero} asignado (usuario {datos.usuario_id}, destino {datos.destino_id or datos.destino_nuevo or 'stock'})",
             ip_address=request.client.host
         )
     return {"mensaje": "Equipo asignado correctamente", "equipo": equipo.numero_inventario}
+
+
+# --------------------------------------------------
+# CONSULTA: ¿QUÉ ELEMENTOS TIENE CADA USUARIO?
+# --------------------------------------------------
+@router.get("/asignaciones/usuarios")
+def listar_usuarios_con_elementos(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    from backend.modulos.usuarios.models import User
+
+    query = (
+        db.query(User)
+        .join(models.Patrimonio, models.Patrimonio.usuario_id == User.id)
+        .filter(models.Patrimonio.activo == True)
+    )
+
+    if buscar and buscar.strip():
+        termino = f"%{buscar.strip()}%"
+        query = query.filter(or_(
+            User.nombre.ilike(termino),
+            User.apellido.ilike(termino),
+            User.cuil.ilike(termino),
+            User.reparticion.ilike(termino),
+            User.puesto.ilike(termino),
+        ))
+
+    query = query.distinct().order_by(User.apellido, User.nombre)
+    usuarios = query.all()
+
+    resultado = []
+    for u in usuarios:
+        cantidad = db.query(models.Patrimonio).filter(
+            models.Patrimonio.usuario_id == u.id,
+            models.Patrimonio.activo == True
+        ).count()
+        resultado.append({
+            "id": u.id,
+            "nombre_completo": f"{u.apellido}, {u.nombre}",
+            "cuil": u.cuil,
+            "reparticion": u.reparticion,
+            "sector": u.sector.nombre if u.sector else "",
+            "puesto": u.puesto or "",
+            "cantidad": cantidad,
+        })
+
+    return {"usuarios": resultado}
+
+
+@router.get("/asignaciones/por-usuario/{usuario_id}")
+def elementos_por_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    bienes = db.query(models.Patrimonio).filter(
+        models.Patrimonio.usuario_id == usuario_id,
+        models.Patrimonio.activo == True
+    ).order_by(models.Patrimonio.tipo, models.Patrimonio.numero_inventario).all()
+
+    items = []
+    for b in bienes:
+        items.append({
+            "numero_inventario": b.numero_inventario,
+            "tipo": b.tipo or "",
+            "descripcion": b.descripcion_bien or b.descripcion_item or "",
+            "marca": b.marca or "",
+            "modelo": b.modelo or "",
+            "serie": b.serie or "",
+            "nombre_de_equipo": b.nombre_de_equipo or "",
+            "puesto": b.puesto or "",
+            "anio": b.anio or "",
+            "estado": b.estado or "",
+        })
+
+    return {"usuario_id": usuario_id, "items": items, "total": len(items)}
+
+@router.get("/asignaciones/por-lugar/{destino_id}")
+def elementos_por_lugar(
+    destino_id: int,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    """Elementos que están en un lugar de destino (Destino)."""
+    destino = db.query(models.Destino).filter(models.Destino.id == destino_id).first()
+    if not destino:
+        raise HTTPException(status_code=404, detail="Destino no encontrado")
+
+    bienes = db.query(models.Patrimonio).filter(
+        models.Patrimonio.destino_id == destino_id,
+        models.Patrimonio.activo == True
+    ).order_by(models.Patrimonio.tipo, models.Patrimonio.numero_inventario).all()
+
+    items = []
+    for b in bienes:
+        items.append({
+            "numero_inventario": b.numero_inventario,
+            "tipo": b.tipo or "",
+            "descripcion": b.descripcion_bien or b.descripcion_item or "",
+            "marca": b.marca or "",
+            "modelo": b.modelo or "",
+            "serie": b.serie or "",
+            "nombre_de_equipo": b.nombre_de_equipo or "",
+            "puesto": b.puesto or "",
+            "anio": b.anio or "",
+            "estado": b.estado or "",
+        })
+
+    return {"destino_id": destino_id, "destino_nombre": destino.nombre, "items": items, "total": len(items)}
+
+@router.get("/asignaciones/lista-completa")
+def lista_completa_asignaciones(
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    """Vista unificada: TODOS los usuarios y destinos (lugares) con la cantidad de
+    elementos en teletrabajo (puesto HOME) y el total de elementos asignados."""
+    from backend.modulos.usuarios.models import User
+
+    termino = f"%{buscar.strip()}%" if buscar and buscar.strip() else None
+
+    # --- Usuarios (personas) ---
+    q_usuarios = db.query(User).filter(User.activo == True)
+    if termino:
+        q_usuarios = q_usuarios.filter(or_(
+            User.nombre.ilike(termino),
+            User.apellido.ilike(termino),
+            User.cuil.ilike(termino),
+            User.reparticion.ilike(termino),
+            User.puesto.ilike(termino),
+        ))
+    usuarios = q_usuarios.order_by(User.apellido, User.nombre).all()
+
+    resultados = []
+    for u in usuarios:
+        q_bienes = db.query(models.Patrimonio).filter(
+            models.Patrimonio.usuario_id == u.id,
+            models.Patrimonio.activo == True
+        )
+        cantidad_total = q_bienes.count()
+        cantidad_home = q_bienes.filter(models.Patrimonio.puesto.ilike("home%")).count()
+        sector = u.sector.nombre if u.sector else ""
+        resultados.append({
+            "tipo": "usuario",
+            "id": u.id,
+            "nombre": f"{u.apellido}, {u.nombre}".upper(),
+            "sub": " · ".join(x for x in [sector, u.reparticion or ""] if x),
+            "cantidad_home": cantidad_home,
+            "cantidad_total": cantidad_total,
+        })
+
+    # --- Destinos (lugares) ---
+    q_destinos = db.query(models.Destino).filter(models.Destino.activo == True)
+    if termino:
+        q_destinos = q_destinos.filter(or_(
+            models.Destino.nombre.ilike(termino),
+            models.Destino.reparticion.ilike(termino),
+        ))
+    destinos = q_destinos.order_by(models.Destino.nombre).all()
+
+    for d in destinos:
+        q_bienes = db.query(models.Patrimonio).filter(
+            models.Patrimonio.destino_id == d.id,
+            models.Patrimonio.activo == True
+        )
+        cantidad_total = q_bienes.count()
+        cantidad_home = q_bienes.filter(models.Patrimonio.puesto.ilike("home%")).count()
+        resultados.append({
+            "tipo": "destino",
+            "id": d.id,
+            "nombre": d.nombre.upper(),
+            "sub": d.reparticion or "",
+            "cantidad_home": cantidad_home,
+            "cantidad_total": cantidad_total,
+        })
+
+    # --- Textos de Usuario/Destino aún sin vincular (ej: "CEMENTERIO") ---
+    texto_norm = func.upper(func.trim(models.Patrimonio.usuario_destino))
+    texto_q = db.query(
+        texto_norm.label("texto_norm"),
+        func.count(models.Patrimonio.numero_inventario).label("n_home"),
+    ).filter(
+        models.Patrimonio.usuario_destino.isnot(None),
+        models.Patrimonio.usuario_destino != "",
+        models.Patrimonio.activo == True,
+        models.Patrimonio.puesto.ilike("home%"),
+        models.Patrimonio.usuario_id.is_(None),
+        models.Patrimonio.destino_id.is_(None),
+    )
+    if termino:
+        texto_q = texto_q.filter(texto_norm.ilike(termino))
+    filas_texto = texto_q.group_by(texto_norm).all()
+
+    for texto, n_home in filas_texto:
+        total_texto = db.query(models.Patrimonio).filter(
+            texto_norm == texto,
+            models.Patrimonio.activo == True,
+            models.Patrimonio.usuario_id.is_(None),
+            models.Patrimonio.destino_id.is_(None),
+        ).count()
+        # Convención: nombre y apellido sin CUIL → persona EXTERNA; lo demás → lugar pendiente
+        es_externo = es_nombre_persona(texto)
+        resultados.append({
+            "tipo": "externo" if es_externo else "pendiente",
+            "id": None,
+            "texto": texto,
+            "nombre": texto,
+            "sub": "Persona externa al sistema (sin CUIL)" if es_externo else "Lugar sin registrar — texto aún sin vincular",
+            "cantidad_home": n_home,
+            "cantidad_total": total_texto,
+        })
+
+    # --- Solo mostramos quienes tienen AL MENOS UN elemento en HOME ---
+    resultados = [r for r in resultados if r["cantidad_home"] > 0]
+
+    # Orden: personas, lugares, luego textos pendientes; dentro de cada grupo por nombre
+    orden_tipo = {"usuario": 0, "destino": 1, "pendiente": 2}
+    resultados.sort(key=lambda r: (orden_tipo.get(r["tipo"], 3), r["nombre"]))
+    return {"resultados": resultados, "total": len(resultados)}
+
+
+@router.get("/asignaciones/detalle-unificado")
+def detalle_unificado_asignaciones(
+    tipo: str = Query(..., pattern="^(usuario|destino|externo|pendiente)$"),
+    id: Optional[int] = None,
+    texto: Optional[str] = None,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY)
+):
+    """Elementos con puesto HOME (teletrabajo) de un usuario, un destino o un
+    texto Usuario/Destino aún sin vincular (ej: "CEMENTERIO")."""
+    query = db.query(models.Patrimonio).filter(
+        models.Patrimonio.activo == True,
+        models.Patrimonio.puesto.ilike("home%"),
+    )
+
+    nombre = ""
+    if tipo == "usuario":
+        from backend.modulos.usuarios.models import User
+        u = db.query(User).filter(User.id == id).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        nombre = f"{u.nombre} {u.apellido}"
+        query = query.filter(models.Patrimonio.usuario_id == id)
+    elif tipo == "destino":
+        d = db.query(models.Destino).filter(models.Destino.id == id).first()
+        if not d:
+            raise HTTPException(status_code=404, detail="Destino no encontrado")
+        nombre = d.nombre
+        query = query.filter(models.Patrimonio.destino_id == id)
+    else:
+        if not texto:
+            raise HTTPException(status_code=400, detail="Falta el parámetro texto")
+        nombre = texto
+        texto_norm = func.upper(func.trim(models.Patrimonio.usuario_destino))
+        query = query.filter(
+            texto_norm == texto.upper(),
+            models.Patrimonio.usuario_id.is_(None),
+            models.Patrimonio.destino_id.is_(None),
+        )
+
+    bienes = query.order_by(models.Patrimonio.tipo, models.Patrimonio.numero_inventario).all()
+
+    items = []
+    for b in bienes:
+        items.append({
+            "numero_inventario": b.numero_inventario,
+            "tipo": b.tipo or "",
+            "descripcion": b.descripcion_bien or b.descripcion_item or "",
+            "marca": b.marca or "",
+            "modelo": b.modelo or "",
+            "serie": b.serie or "",
+            "nombre_de_equipo": b.nombre_de_equipo or "",
+            "puesto": b.puesto or "",
+            "anio": b.anio or "",
+            "estado": b.estado or "",
+        })
+
+    return {"tipo": tipo, "id": id, "nombre": nombre, "items": items, "total": len(items)}
+
+@router.post("/asignaciones/reconciliar")
+def reconciliar_asignaciones_endpoint(
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY),
+    ip: str = Depends(get_client_ip)
+):
+    """Vincula retroactivamente los bienes que tienen texto de usuario/destino
+    pero ningún vínculo a usuario o lugar."""
+    servicio = PatrimonioService(db)
+    resultado = servicio.reconciliar_asignaciones(usuario_admin=usuario_actual, ip=ip)
+
+    uid = _obtener_usuario_id(db, usuario_actual)
+    if uid:
+        registrar_evento(
+            db, usuario_id=uid, accion="RECONCILIAR_ASIGNACIONES",
+            detalle=f"Reconciliación: {resultado['vinculados_a_usuario']} usuarios, {resultado['vinculados_a_lugar']} lugares, {len(resultado['pendientes'])} tipos pendientes",
+            ip_address=request.client.host
+        )
+    return resultado
 
 @router.post("/importar-informatica")
 async def importar_excel_informatica_endpoint(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    usuario: dict = Depends(verificar_usuario_autenticado)
+    usuario: dict = Depends(verificar_usuario_autenticado),
+    reactivar_desactualizados: bool = Form(False)
 ):
     ip = request.client.host
     service = PatrimonioService(db)
-    resultado = await service.importar_excel_informatica(file, usuario.get("sub"), ip)
+    resultado = await service.importar_excel_informatica(file, usuario.get("sub"), ip, reactivar_desactualizados=reactivar_desactualizados)
 
     uid = usuario.get("id")
     if uid:
