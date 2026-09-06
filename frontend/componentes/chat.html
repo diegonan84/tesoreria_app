@@ -1,0 +1,80 @@
+<div id="chat-header" onclick="toggleChat()" style="background: #1a3644; color: white; padding: 10px; cursor: pointer; display: flex; justify-content: space-between; border-radius: 8px 8px 0 0;">
+    <strong>💬 Chat</strong>
+    <span id="notif-chat" style="display:none; color: #ffcc00;">●</span>
+</div>
+
+<div id="chat-body" style="display: none; flex-direction: column; height: 380px; background: white; border: 1px solid #ccc; border-top: none;">
+    
+    <!-- PESTAÑAS: CONTACTOS / BUSCAR -->
+    <div style="display: flex; background: #e0e6e8; border-bottom: 1px solid #ccc;">
+        <button onclick="cambiarPestanaChat('contactos')" id="tab-contactos" style="flex: 1; padding: 8px; border: none; background: white; font-weight: bold; cursor: pointer;">Contactos</button>
+        <button onclick="cambiarPestanaChat('buscar')" id="tab-buscar" style="flex: 1; padding: 8px; border: none; background: transparent; cursor: pointer;">Buscar 🔍</button>
+    </div>
+
+    <!-- PANTALLA 1: DIRECTORIO DE CONTACTOS Y SOLICITUDES -->
+    <div id="pantalla-contactos" style="flex-grow: 1; overflow-y: auto; display: block;">
+        <!-- Solicitudes Pendientes (Aparece solo si hay) -->
+        <div id="panel-solicitudes" style="display: none; background: #fff3cd; padding: 10px; border-bottom: 1px solid #ffeeba;">
+            <strong style="font-size: 11px; color: #856404;">Nuevas Solicitudes:</strong>
+            <div id="lista-solicitudes"></div>
+        </div>
+
+        <div class="chat-group-header" onclick="toggleGrupoChat('lista-conectados')" style="background: #f9fbfb; padding: 5px 10px; font-size: 11px; font-weight: bold; color: #1a3644; cursor: pointer; border-bottom: 1px solid #eee;">
+            🟢 Conectados (<span id="count-conectados">0</span>)
+        </div>
+        <div id="lista-conectados"></div>
+
+        <div class="chat-group-header" onclick="toggleGrupoChat('lista-desconectados')" style="background: #f9fbfb; padding: 5px 10px; font-size: 11px; font-weight: bold; color: #555; cursor: pointer; border-bottom: 1px solid #eee;">
+            ⚪ Desconectados (<span id="count-desconectados">0</span>)
+        </div>
+        <div id="lista-desconectados"></div>
+    </div>
+
+    <!-- PANTALLA 2: BUSCADOR GLOBAL -->
+    <div id="pantalla-buscar" style="flex-grow: 1; overflow-y: auto; display: none; padding: 10px;">
+        <input type="text" id="input-buscar-chat" placeholder="Escribe un nombre..." style="width: 100%; padding: 6px; margin-bottom: 10px; border: 1px solid #ccc;">
+        <button onclick="buscarGlobalChat()" style="width: 100%; padding: 6px; background: #1a3644; color: white; border: none; cursor: pointer;">Buscar</button>
+        <div id="resultados-busqueda" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- PANTALLA 3: CONVERSACIÓN -->
+    <div id="chat-conversation" style="display: none; flex: 1; flex-direction: column; min-height: 0;">
+        
+        <!-- Cabecera de la conversación (Fija) -->
+        <div style="background: #f0f4f8; padding: 8px; border-bottom: 1px solid #ccc; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+            <div style="display: flex; gap: 5px; align-items: center;">
+                <button onclick="volverDirectorio()" style="border: none; background: transparent; cursor: pointer; font-size: 16px;">⬅</button>
+                <strong id="chat-nombre-activo" style="font-size: 14px; color: #1a3644;"></strong>
+            </div>
+            <!-- Botón para eliminar contacto -->
+            <button onclick="eliminarContactoActivo()" style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;">Eliminar</button>
+        </div>
+        
+        <!-- Área de Mensajes (Scrollable) -->
+        <!-- Le sumamos padding-bottom extra para que el último mensaje respire -->
+        <div id="chat-messages" style="flex-grow: 1; overflow-y: auto; padding: 10px 10px 15px 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+        
+        <!-- Área de Input (Fija) -->
+        <div style="padding: 10px; border-top: 1px solid #ccc; display: flex; gap: 5px; flex-shrink: 0; background: white; position: relative;">
+            
+            <!-- ✨ PANEL DE EMOJIS (Oculto por defecto) -->
+            <div id="emoji-picker" style="display: none; position: absolute; bottom: 50px; left: 10px; width: 260px; height: 160px; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); overflow-y: auto; padding: 8px; z-index: 1000; flex-wrap: wrap; gap: 5px; align-content: flex-start;">
+                <!-- Los emojis se inyectarán aquí con JavaScript -->
+            </div>
+
+            <!-- ✨ BOTÓN PARA ABRIR EMOJIS (Toque suave y moderno) -->
+            <button onclick="toggleEmojiPicker(event)" style="background: #f9fbfb; border: 1px solid #ccc; border-radius: 4px; padding: 0 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='#e0e6e8'" onmouseout="this.style.background='#f9fbfb'" title="Emojis">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                </svg>
+            </button>
+
+            <input type="text" id="chat-input" placeholder="Mensaje..." style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;" onkeypress="if(event.key === 'Enter') enviarMensaje()">
+            <button onclick="enviarMensaje()" style="background: #58a598; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">Enviar</button>
+        </div>
+
+    </div>
+</div>

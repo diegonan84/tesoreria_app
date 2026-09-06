@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Restablecer Contraseña</title>
+    <link rel="stylesheet" href="/archivos/login.css?v=100">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div class="contenedor-auth">
+        <div class="panel-izquierdo">
+            <h1 class="titulo-bienvenida">NUEVA CLAVE</h1>
+            <div class="linea-separadora"></div>
+            <p>Asegúrese de usar una contraseña fuerte y no compartirla.</p>
+        </div>
+        <div class="panel-derecho">
+            <h3>Nueva Contraseña</h3>
+            <div class="grupo-input"><input type="password" id="reset-password" placeholder="Nueva Contraseña (Mín. 8)"></div>
+            <div class="grupo-input"><input type="password" id="reset-confirm" placeholder="Confirmar Contraseña"></div>
+            <button id="btn-reset" class="btn-ingresar" onclick="enviarNuevaContrasena()">GUARDAR</button>
+            <p id="mensaje-reset" class="mensaje-error"></p>
+        </div>
+    </div>
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/auth.js"></script>
+</body>
+</html>

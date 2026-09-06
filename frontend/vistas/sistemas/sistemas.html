@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistemas | Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+</head>
+<body>
+    <!-- Componentes Globales -->
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <!-- ÁREA DE TRABAJO ESPECÍFICA DEL MÓDULO -->
+    <div class="main-layout">
+        <main class="dashboard-body" style="margin-left: 260px; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: #1a3644; margin: 0;">Gestión de Sistemas</h2>
+                <div>
+                    <!-- ✨ NUEVO BOTÓN: Generar Nota de Salida ✨ -->
+                    <button class="btn-action" style="background-color: #fd7e14; color: white; margin-right: 10px;" onclick="abrirModalNotaSalida()">📄 Generar Nota Salida de Equipo</button>
+                    
+                    <button class="btn-action btn-approve" onclick="abrirNuevoSistema()">+ Nuevo Sistema</button>
+                </div>
+            </div>
+
+            <!-- Aquí irá el contenido de tu módulo (tablas, tarjetas, etc.) -->
+            <div class="card">
+                <p>Bienvenido al módulo de sistemas. Aquí gestionaremos las aplicaciones y accesos.</p>
+                <div id="contenedor-sistemas">
+                    <!-- Se llenará con JavaScript -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ✨ MODAL PARA NOTA DE SALIDA DE EQUIPO ✨ -->
+    <div id="modal-nota-salida" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 25px; border-radius: 8px; width: 500px; max-width: 95%; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            <h3 style="margin-top: 0; color: #1a3644; border-bottom: 1px solid #ccc; padding-bottom: 10px;">Generar Nota de Salida de Equipo</h3>
+            
+            <form id="form-nota-salida">
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Ingrese el N° de Inventario para autocompletar el equipo, o llene los datos manualmente si es un equipo externo.</p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 13px; font-weight: bold;">N° Inventario (Opcional)</label>
+                        <input type="text" id="nota-inventario" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="width: 80px;">
+                        <label style="display: block; font-size: 13px; font-weight: bold;">Cantidad</label>
+                        <input type="number" id="nota-cantidad" value="1" min="1" required style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 13px; font-weight: bold;">Tipo (Manual)</label>
+                        <input type="text" id="nota-tipo" placeholder="Ej: Notebook" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 13px; font-weight: bold;">Marca (Manual)</label>
+                        <input type="text" id="nota-marca" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 13px; font-weight: bold;">N° Serie (Manual)</label>
+                        <input type="text" id="nota-serie" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+
+                <div style="margin-bottom: 10px;">
+                    <label style="display: block; font-size: 13px; font-weight: bold;">Nombre y Apellido del Receptor *</label>
+                    <input type="text" id="nota-nombre" required style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label style="display: block; font-size: 13px; font-weight: bold;">CUIT / CUIL *</label>
+                    <input type="text" id="nota-cuil" required placeholder="Ej: 20-12345678-9" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 13px; font-weight: bold;">Motivo *</label>
+                    <input type="text" id="nota-motivo" required placeholder="Ej: Teletrabajo" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+
+                <div style="text-align: right;">
+                    <button type="button" class="btn-action" style="background-color: #6c757d; color: white;" onclick="cerrarModalNotaSalida()">Cancelar</button>
+                    <button type="submit" class="btn-action" style="background-color: #fd7e14; color: white;">🖨️ Generar PDF</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts en orden -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    
+    <!-- El Script específico de este módulo -->
+    <script src="/archivos/js/sistemas.js"></script>
+</body>
+</html>

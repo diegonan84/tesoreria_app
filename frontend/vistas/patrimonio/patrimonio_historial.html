@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial del Bien | Patrimonio</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/patrimonio.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    
+    <div class="main-layout">
+        <main class="patrimonio-container" style="margin-left: 260px; padding: 20px;">
+            <div class="header-acciones">
+                <h2 id="historial-titulo">Historial del Bien</h2>
+                <button class="btn-patrimonio" style="background-color: #6c757d;" onclick="window.location.href='/patrimonio-vista'">Volver al Inventario</button>
+            </div>
+
+            <div class="table-container" style="margin-top: 20px;">
+                <table class="tabla-patrimonio">
+                    <thead>
+                        <tr>
+                            <th>Fecha y Hora</th>
+                            <th>Usuario / IP</th>
+                            <th>Acción</th>
+                            <th>Detalle del Cambio</th>
+                            <th>Observaciones del Sistema</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-historial-body">
+                        <tr><td colspan="5" style="text-align: center;">Cargando historial...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/patrimonio.js"></script>
+</body>
+</html>

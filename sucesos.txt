@@ -1,0 +1,222 @@
+python -m venv venv
+venv\Scripts\activate
+pip install fastapi uvicorn python-multipart
+///////
+fastapi           0.139.2
+h11               0.16.0
+idna              3.18
+pip               25.3
+pydantic          2.13.4
+pydantic_core     2.46.4
+python-multipart  0.0.32
+starlette         1.3.1
+typing_extensions 4.16.0
+typing-inspection 0.4.2
+uvicorn           0.51.0
+///////
+
+pip install sqlalchemy psycopg2-binary
+pip install "python-jose[cryptography]"
+pip install "passlib[bcrypt]"
+
+Package           Version
+----------------- -----------
+alembic           1.18.5
+annotated-doc     0.0.4
+annotated-types   0.7.0
+anyio             4.14.2
+arq               0.26.0
+bcrypt            3.2.2
+cffi              2.1.0
+click             8.4.2
+colorama          0.4.6
+cryptography      49.0.0
+dnspython         2.8.0
+ecdsa             0.19.2
+email-validator   2.3.0
+et_xmlfile        2.0.0
+fastapi           0.139.2
+greenlet          3.5.3
+h11               0.16.0
+hiredis           3.4.0
+idna              3.18
+Mako              1.3.12
+MarkupSafe        3.0.3
+numpy             2.5.1
+openpyxl          3.1.5
+pandas            3.0.5
+passlib           1.7.4
+pip               25.3
+psycopg2-binary   2.9.12
+pyasn1            0.6.4
+pycparser         3.0
+pydantic          2.13.4
+pydantic_core     2.46.4
+python-dateutil   2.9.0.post0
+python-jose       3.5.0
+python-multipart  0.0.32
+redis             5.0.0
+rsa               4.9.1
+six               1.17.0
+SQLAlchemy        2.0.51
+starlette         1.3.1
+typing_extensions 4.16.0
+typing-inspection 0.4.2
+tzdata            2026.3
+uvicorn           0.51.0
+websockets        16.1
+
+
+
+
+//// uvicorn backend.main:app --
+
+
+
+alembic revision --autogenerate -m "Migracion inicial completa"
+alembic upgrade head
+
+
+
+(venv) PS C:\Pruebas\tesoreria_app> pip list
+Package           Version
+----------------- -----------
+alembic           1.18.5
+annotated-doc     0.0.4
+annotated-types   0.7.0
+anyio             4.14.2
+arq               0.26.0
+bcrypt            3.2.2
+cffi              2.1.0
+click             8.4.2
+colorama          0.4.6
+cryptography      49.0.0
+dnspython         2.8.0
+ecdsa             0.19.2
+email-validator   2.3.0
+et_xmlfile        2.0.0
+fastapi           0.139.2
+greenlet          3.5.3
+h11               0.16.0
+hiredis           3.4.0
+idna              3.18
+Mako              1.3.12
+MarkupSafe        3.0.3
+numpy             2.5.1
+openpyxl          3.1.5
+pandas            3.0.5
+passlib           1.7.4
+pip               25.3
+psycopg2-binary   2.9.12
+pyasn1            0.6.4
+pycparser         3.0
+pydantic          2.13.4
+pydantic_core     2.46.4
+python-dateutil   2.9.0.post0
+python-jose       3.5.0
+python-multipart  0.0.32
+redis             5.0.0
+rsa               4.9.1
+six               1.17.0
+SQLAlchemy        2.0.51
+starlette         1.3.1
+typing_extensions 4.16.0
+typing-inspection 0.4.2
+tzdata            2026.3
+uvicorn           0.51.0
+websockets        16.1
+
+pip install python-barcode pillow
+
+
+
+TRUNCATE TABLE patrimonio CASCADE;
+
+
+TRUNCATE TABLE patrimonio_historial;
+TRUNCATE TABLE patrimonio;
+
+
+
+-- 1. Creamos la tabla sectores
+CREATE TABLE sectores (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR UNIQUE,
+    activo BOOLEAN DEFAULT TRUE
+);
+
+-- 2. Agregamos la columna sector_id a los usuarios
+ALTER TABLE usuarios ADD COLUMN sector_id INTEGER REFERENCES sectores(id);
+
+ALTER TABLE sectores ADD COLUMN color VARCHAR DEFAULT '#1a3644';
+ALTER TABLE usuarios ADD COLUMN puesto VARCHAR;
+
+
+CREATE TABLE equipos (
+    id SERIAL PRIMARY KEY,
+    nro_inventario VARCHAR NOT NULL UNIQUE,
+    nombre_equipo VARCHAR NOT NULL,
+    piso VARCHAR NOT NULL,
+    numero_puesto VARCHAR NOT NULL,
+    usuario_id INTEGER REFERENCES usuarios(id)
+);
+
+CREATE INDEX ix_equipos_numero_puesto ON equipos (numero_puesto);
+CREATE INDEX ix_equipos_nro_inventario ON equipos (nro_inventario);
+
+
+
+
+
+corrige lo anterior
+
+-- 1. Borramos la tabla vieja incompleta
+DROP TABLE IF EXISTS equipos;
+
+-- 2. Creamos la tabla con TODAS las columnas que Python necesita
+CREATE TABLE equipos (
+    id SERIAL PRIMARY KEY,
+    nro_inventario VARCHAR NOT NULL UNIQUE,
+    nombre_equipo VARCHAR NOT NULL,
+    piso VARCHAR NOT NULL,
+    numero_puesto VARCHAR NOT NULL,
+    usuario_id INTEGER REFERENCES usuarios(id)
+);
+
+-- 3. Le agregamos los índices para que las búsquedas del mapa sean veloces
+CREATE INDEX ix_equipos_numero_puesto ON equipos (numero_puesto);
+CREATE INDEX ix_equipos_nro_inventario ON equipos (nro_inventario);
+
+
+
+/////CREATE TABLE mapas_grid (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR NOT NULL UNIQUE,
+    filas INTEGER DEFAULT 5,
+    columnas INTEGER DEFAULT 5
+);
+
+CREATE TABLE mapas_celdas (
+    id SERIAL PRIMARY KEY,
+    mapa_id INTEGER REFERENCES mapas_grid(id) ON DELETE CASCADE,
+    fila INTEGER NOT NULL,
+    columna INTEGER NOT NULL,
+    habilitado BOOLEAN DEFAULT FALSE,
+    numero_puesto VARCHAR,
+    rotacion INTEGER DEFAULT 0
+);
+
+
+
+TRUNCATE TABLE patrimonio CASCADE;
+
+pip install pandas openpyxl python-multipart
+
+pip install reportlab
+
+pip install python-barcode
+
+pip install python-barcode pillow
+
+pip install xlsxwriter
+

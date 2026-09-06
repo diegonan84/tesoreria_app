@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Constructor de Matriz - Tesorería</title>
+    <!-- Estilos limpios y separados -->
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/mapas.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <main class="dashboard-body" style=" margin-bottom: 20px; margin-top: 50px; padding: 20px;">
+        <h2 style="color: #1a3644; margin-top: 0; margin-bottom: 20px;">Editor Arquitectónico de Planos</h2>
+        
+        <!-- Panel para seleccionar, cargar, borrar o crear mapas -->
+        <!-- Panel para seleccionar, cargar, borrar o crear mapas -->
+        <div class="panel-gestion">
+            <select id="select-mapa-editar" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; flex-grow: 1; font-weight: bold;">
+                <option value="">-- Seleccione un mapa guardado --</option>
+            </select>
+            <button class="btn-action" style="background: #e0e6e8; color: #333;" onclick="cargarMapaSeleccionado()">📂 Cargar</button>
+            <button class="btn-action" style="background: #dc3545; color: white;" onclick="eliminarMapa()">🗑️ Borrar Mapa</button>
+            
+            <div style="width: 2px; height: 30px; background: #ccc; margin: 0 5px;"></div>
+            <button class="btn-action" style="background: #58a598; color: white;" onclick="prepararNuevoMapa()">✨ Crear Nuevo</button>
+
+            <!-- ✨ NUEVOS BOTONES: Exportar e Importar UN SOLO MAPA -->
+            <div style="width: 2px; height: 30px; background: #ccc; margin: 0 5px;"></div>
+            <button class="btn-action" style="background-color: #1a3644; color: white;" onclick="exportarMapaUnico()">⬇️ Exportar Plano</button>
+            <button class="btn-action" style="background-color: #8ed1d4; color: #1a3644;" onclick="document.getElementById('input-importar-unico').click()">⬆️ Importar Plano</button>
+            <input type="file" id="input-importar-unico" accept=".json" style="display: none;" onchange="importarMapaUnico(event)">
+            
+            <!-- Botones de BACKUP COMPLETO -->
+            <div style="width: 2px; height: 30px; background: #ccc; margin: 0 5px;"></div>
+            <button class="btn-action" style="background: #28a745; color: white;" onclick="exportarBackup()">⬇️ Backup Total</button>
+            <button class="btn-action" style="background: #ffc107; color: black;" onclick="document.getElementById('file-import').click()">⬆️ Importar Backup</button>
+            <input type="file" id="file-import" accept=".json" style="display: none;" onchange="importarBackup(event)">
+        </div>
+
+        <div class="toolbar-matriz">
+            <div class="input-group">
+                <label>Título del Mapa (Nombre)</label>
+                <input type="text" id="mapa-titulo" placeholder="Ej: Primer Piso" style="width: 250px;">
+            </div>
+            <div class="input-group">
+                <label>Columnas</label>
+                <input type="number" id="mapa-cols" value="8" min="1" max="20" style="width: 70px;">
+            </div>
+            <div class="input-group">
+                <label>Filas</label>
+                <input type="number" id="mapa-filas" value="4" min="1" max="20" style="width: 70px;">
+            </div>
+            <button class="btn-action" style="background: #1a3644; color: white; margin-left: 10px;" onclick="generarGrillaBase()">🔄 Generar Cuadrícula</button>
+            
+            <div style="flex-grow: 1;"></div> 
+            <button class="btn-action btn-approve" onclick="guardarMapaCompleto()">💾 Guardar Mapa</button>
+        </div>
+
+        <div id="matriz-container"></div>
+    </main>
+
+    <!-- Scripts unificados -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/mapas.js"></script>
+</body>
+</html>

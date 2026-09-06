@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Matriz de Puestos - Tesorería</title>
+    <!-- Estilos separados -->
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/mapas.css">
+    <!-- Librería externa para exportar a PNG -->
+    <script src="/archivos/js/html2canvas.min.js"></script>
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    
+    <main class="dashboard-body" style=" margin-bottom: 20px; margin-top: 50px; padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="color: #1a3644; margin: 0;">Mapa Interactivo de Puestos</h2>
+            
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <select id="select-mapa" onchange="cargarMatriz()" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold;">
+                    <option value="">Cargando mapas...</option>
+                </select>
+                
+                <div style="width: 1px; height: 30px; background: #ccc; margin: 0 5px;"></div>
+                
+                <button class="btn-action" style="background: #1a3644; color: white; display: flex; gap: 5px; align-items: center;" onclick="imprimirMapa()">
+                    🖨️ Imprimir / PDF
+                </button>
+                <button class="btn-action" style="background: #58a598; color: white; display: flex; gap: 5px; align-items: center;" onclick="exportarImagen(this)">
+                    📸 Exportar PNG
+                </button>
+            </div>
+        </div>
+
+        <div class="mapa-container">
+            <div id="grilla-mapa" class="grilla-puestos">Cargando matriz...</div>
+            <div id="panel-observaciones" class="panel-obs" style="display: none;">
+                <h4 style="color: #dc3545; margin-top: 0;">⚠️ Observaciones</h4>
+                <div id="lista-observaciones"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ✨ MODAL DE INFORMACIÓN DEL PUESTO (TIPO TARJETA) ✨ -->
+    <div id="modal-info-puesto" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 25px; border-radius: 8px; width: 280px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative;">
+            <!-- Botón cerrar (X) -->
+            <button onclick="document.getElementById('modal-info-puesto').style.display='none'" style="position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 20px; cursor: pointer; color: #666;">&times;</button>
+            
+            <h3 style="margin-top: 0; margin-bottom: 20px; color: #1a3644; border-bottom: 2px solid #eee; padding-bottom: 10px; text-align: center;">Puesto <span id="info-puesto-id"></span></h3>
+            
+            <div id="info-puesto-contenido" style="max-height: 400px; overflow-y: auto;">
+                <!-- Aquí se inyectan las tarjetas técnicas -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts en orden -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/mapas.js"></script>
+</body>
+</html>

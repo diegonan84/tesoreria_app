@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patrimonio - Inventario | Tesorería</title>
+    <!-- Estilos separados y limpios -->
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/patrimonio.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <div class="main-layout">
+        <!-- Contenido Específico de Patrimonio -->
+        <main class="patrimonio-container" style="margin-left: 260px; padding: 20px;">
+            
+            <!-- ✨ TÍTULO CON BADGE DE TOTAL DE REGISTROS ✨ -->
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Inventario de Bienes Patrimoniales</h2>
+                <span id="badge-total-registros" style="background-color: #e0e6e8; color: #1a3644; padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: bold; display: none;">
+                    Calculando...
+                </span>
+            </div>
+            
+            <!-- Botones de Acción Principales -->
+            <div class="acciones-top" style="margin-bottom: 20px;">
+                <a href="/patrimonio-nuevo" class="btn-patrimonio"> + Nuevo Bien</a>
+                
+                <button class="btn-patrimonio" id="btn-importar-excel">Importar Excel Todos</button>
+                <input type="file" id="input-file-excel" accept=".xls,.xlsx" style="display: none;">
+                
+                <!-- NUEVO BOTÓN: Importar Año / Detalles -->
+                <button class="btn-patrimonio" id="btn-importar-anio" style="background-color: #17a2b8;">Importar Excel Año/Detalles</button>
+                <input type="file" id="input-file-anio" accept=".xls,.xlsx" style="display: none;">
+                                
+                <!-- ✨ NUEVO BOTÓN: Importar Informática ✨ -->
+                <button class="btn-patrimonio" id="btn-importar-informatica" style="background-color: #6f42c1;">Importar Informática (DGTES)</button>
+                <input type="file" id="input-file-informatica" accept=".xls,.xlsx" style="display: none;">
+
+
+                <button class="btn-patrimonio" id="btn-exportar-excel">Exportar Excel</button>
+            </div>
+
+            <!-- Controles de Búsqueda y Botón de Imprimir -->
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="input-busqueda" placeholder="Buscar Nº Inventario..." 
+                       style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 200px;">
+                
+                <!-- CAMPOS DE RANGO -->
+                <input type="number" id="input-desde" placeholder="Desde Nº..." 
+                       style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 130px;">
+                <input type="number" id="input-hasta" placeholder="Hasta Nº..." 
+                       style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 130px;">
+
+                <!-- FILTRO POR RUBRO -->
+                <select id="input-rubro" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 160px; cursor: pointer;">
+                    <option value="">Rubro (Todos)</option>
+                </select>
+
+                <!-- FILTRO POR AÑO -->
+                <select id="input-anio" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 130px; cursor: pointer;">
+                    <option value="">Año (Todos)</option>
+                    <!-- Los años se cargarán aquí desde JS -->
+                </select>
+
+                <button id="btn-buscar" class="btn-patrimonio">Buscar</button>
+                <button id="btn-limpiar" class="btn-patrimonio" style="background: #6c757d;">Limpiar</button>
+                
+                <!-- BOTÓN PARA IMPRIMIR -->
+                <button id="btn-imprimir-seleccion" class="btn-patrimonio" style="background: #28a745; margin-left: auto;">
+                    🖨️ Imprimir Etiquetas
+                </button>
+            </div>
+
+            <table class="patrimonio-table" id="tabla-patrimonio">
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align: center;">
+                            <input type="checkbox" id="chk-seleccionar-todos" style="cursor: pointer; width: 16px; height: 16px;" title="Seleccionar Todos">
+                        </th>
+                        <!-- ENCABEZADOS CLICKEABLES -->
+                        <th class="th-sortable" id="th-numero_inventario" onclick="PatrimonioModulo.ordenarPor('numero_inventario')">N° Inventario <span>▲</span></th>
+                        <th class="th-sortable" id="th-rubro_patrimonial_numero" onclick="PatrimonioModulo.ordenarPor('rubro_patrimonial_numero')">Rubro Nro. <span></span></th>
+                        <th class="th-sortable" id="th-rubro_patrimonial_descripcion" onclick="PatrimonioModulo.ordenarPor('rubro_patrimonial_descripcion')">Rubro Descripción <span></span></th>
+                        <th class="th-sortable" id="th-descripcion_bien" onclick="PatrimonioModulo.ordenarPor('descripcion_bien')">Descripción del bien <span></span></th>
+                        <th class="th-sortable" id="th-anio" onclick="PatrimonioModulo.ordenarPor('anio')">Año <span></span></th>
+                        <th>Monto original</th>
+                        <th>Monto residual</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-patrimonio-body">
+                    <!-- Los datos se inyectarán aquí mediante patrimonio.js -->
+                </tbody>
+            </table>
+            
+            <!-- Controles de Paginación -->
+            <div class="paginacion-container" style="display: flex; justify-content: center; gap: 15px; align-items: center; margin-top: 20px; margin-bottom: 60px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+                <button id="btn-first-page" class="btn-patrimonio" disabled>&#171; Primera</button>
+                <button id="btn-prev-page" class="btn-patrimonio" disabled>&#8592; Anterior</button>
+                
+                <span id="page-info" style="font-weight: bold; font-size: 1.1em; min-width: 100px; text-align: center;">Página 1 de 1</span>
+                
+                <button id="btn-next-page" class="btn-patrimonio" disabled>Siguiente &#8594;</button>
+                <button id="btn-last-page" class="btn-patrimonio" disabled>Última &#187;</button>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL PARA VER DETALLES -->
+    <div id="modal-detalles" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 20px; border-radius: 8px; width: 450px; max-width: 90%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h3 style="margin-top: 0; color: #1a3644; border-bottom: 1px solid #ccc; padding-bottom: 10px;">Descripción Detallada</h3>
+            <p id="texto-detalles" style="font-size: 14px; color: #333; min-height: 60px; max-height: 250px; overflow-y: auto; white-space: pre-wrap;"></p>
+            <div style="text-align: right; margin-top: 15px;">
+                <button class="btn-patrimonio" style="background-color: #6c757d;" onclick="PatrimonioModulo.cerrarDetalles()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+    <!-- Scripts Globales y Modulares en orden -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/patrimonio.js"></script>
+    
+</body>
+</html>

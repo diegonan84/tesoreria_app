@@ -1,0 +1,61 @@
+/* ==================================================
+   MÓDULO PATRIMONIO - ESTILOS ESPECÍFICOS
+   ================================================== */
+
+.patrimonio-container {
+    padding: 20px;
+    background-color: #f8f9fa;
+}
+
+.patrimonio-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.patrimonio-table th, .patrimonio-table td {
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    text-align: left;
+}
+
+.patrimonio-table th {
+    background-color: #343a40;
+    color: white;
+}
+
+/* Clases para los estados del bien */
+.estado-activo {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.estado-baja {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.btn-patrimonio {
+    padding: 5px 10px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    background-color: #007bff;
+    color: white;
+}
+/* ============================================================================ */
+/* ESTILOS DE LA TABLA DE INFORMÁTICA                                           */
+/* ============================================================================ */
+.th-sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+.th-sortable:hover {
+    background-color: #0b3a47;
+}
+.th-sortable span {
+    font-size: 0.8em;
+    margin-left: 5px;
+    color: #9ee4d3;
+}

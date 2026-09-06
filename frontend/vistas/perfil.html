@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi Perfil - Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    <main class="dashboard-body">
+        <h2 style="color: #1a3644; margin-bottom: 25px;">Mi Perfil de Usuario</h2>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            
+            <div class="card" style="border-top: 4px solid #1a3644;">
+                <h3 style="color: #1a3644; margin-top: 0; margin-bottom: 20px;">Información de Identidad</h3>
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 13px; font-weight: bold; color: #666;">Nombre de Usuario</label>
+                    <input type="text" id="perf-nombre" disabled style="width:100%; padding:8px; border:1px solid #ccc; background:#f4f7f8; border-radius:4px; font-family:inherit; color:#555;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 13px; font-weight: bold; color: #666;">Correo Institucional</label>
+                    <input type="text" id="perf-email" disabled style="width:100%; padding:8px; border:1px solid #ccc; background:#f4f7f8; border-radius:4px; font-family:inherit; color:#555;">
+                </div>
+                <div>
+                    <label style="font-size: 13px; font-weight: bold; color: #666;">Roles Activos en Sistema</label>
+                    <input type="text" id="perf-roles" disabled style="width:100%; padding:8px; border:1px solid #ccc; background:#f4f7f8; border-radius:4px; font-family:inherit; color:#555; font-weight:bold;">
+                </div>
+            </div>
+
+            <div class="card" style="border-top: 4px solid #ffcc00;">
+                <h3 style="color: #1a3644; margin-top: 0; margin-bottom: 20px;">Seguridad y Contraseña</h3>
+                <form onsubmit="guardarCambioClave(event)">
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 13px; font-weight: bold; color: #333;">Contraseña Actual</label>
+                        <input type="password" id="perf-actual" required style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 13px; font-weight: bold; color: #333;">Nueva Contraseña (Mín. 8 caracteres)</label>
+                        <input type="password" id="perf-nueva" required minlength="8" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit;">
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="font-size: 13px; font-weight: bold; color: #333;">Confirmar Nueva Contraseña</label>
+                        <input type="password" id="perf-confirmar" required minlength="8" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit;">
+                    </div>
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button type="submit" class="btn-action btn-approve" style="background: #1a3644;">Actualizar Contraseña</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/auth.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarDatosPantallaPerfil(); 
+        });
+    </script>
+</body>
+</html>

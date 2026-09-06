@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Usuarios - Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    
+    <!-- ÁREA DE TRABAJO -->
+    <main class="dashboard-body">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; margin-top: 50px;">
+            <h2 style="color: #1a3644; margin: 0;">Gestión de Usuarios</h2>
+            
+            <div style="display: flex; gap: 10px;">
+                <!-- Input invisible para seleccionar el archivo -->
+                <input type="file" id="file-import-usuarios" accept=".xlsx, .xls" style="display: none;" onchange="importarUsuariosExcel(event)">
+                
+                <button onclick="document.getElementById('file-import-usuarios').click()" style="background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    📥 Importar desde Excel
+                </button>
+                
+                <button onclick="abrirAlta()" style="background-color: #58a598; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    + Alta Manual de Usuario
+                </button>
+            </div>
+        </div>
+        
+        <!-- Tabla de Datos -->
+        <table class="table-ba">
+            <thead>
+                <tr>
+                    <th onclick="ordenarTabla('apellido')" style="cursor: pointer;" title="Ordenar por Colaborador">
+                        Apellido y Nombre <span id="sort-apellido" style="font-size: 10px; color: #58a598;"></span>
+                    </th>
+                    <th>CUIL</th>
+                    <th onclick="ordenarTabla('puesto')" style="cursor: pointer;" title="Ordenar por Repartición/Puesto">
+                        Repartición / Puesto <span id="sort-puesto" style="font-size: 10px; color: #58a598;"></span>
+                    </th>
+                    <th onclick="ordenarTabla('sector')" style="cursor: pointer;" title="Ordenar por Sector">
+                        Sector <span id="sort-sector" style="font-size: 10px; color: #58a598;"></span>
+                    </th>
+                    <th style="width: 20%;">Roles de Acceso</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-usuarios">
+                <tr><td colspan="7" style="text-align: center;">Cargando registros...</td></tr>
+            </tbody>
+        </table>
+
+        <!-- PANEL DE EDICIÓN (Oculto) -->
+        <div id="panel-edicion" class="card" style="display: none; margin-top: 30px; border-left: 5px solid #ffcc00; transition: all 0.3s;">
+            <h3 style="color: #1a3644; margin-top: 0; margin-bottom: 20px;">Modificar Datos del Usuario</h3>
+            <form id="form-edicion" onsubmit="guardarEdicion(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <input type="hidden" id="edit-id">
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Nombre</label><input type="text" id="edit-nombre" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Apellido</label><input type="text" id="edit-apellido" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">CUIL</label><input type="text" id="edit-cuil" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Correo Electrónico</label><input type="email" id="edit-email" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Repartición</label><input type="text" id="edit-reparticion" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Puesto / Función</label><input type="text" id="edit-puesto" placeholder="Ej: Analista Contable" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+
+                <div style="grid-column: span 2;">
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">Sector (Opcional)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <select id="edit-sector" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;">
+                            <option value="">-- Sin sector asignado --</option>
+                        </select>
+                        <button type="button" class="btn-action" style="background:#58a598; color:white; padding: 0 10px; font-size: 14px;" onclick="abrirModalEditarSector('edit-sector')" title="Editar Sector Seleccionado">✏️</button>
+                        <button type="button" class="btn-action" style="background:#1a3644; color:white; padding: 0 12px; font-size: 16px;" onclick="abrirModalSector()" title="Crear Sector Nuevo">+</button>
+                    </div>
+                </div>
+                
+                <!-- ✨ NUEVO ÁRBOL DE PERMISOS: EDICIÓN ✨ -->
+                <div style="grid-column: span 2; background: #f9fbfb; padding: 15px; border-radius: 6px; border: 1px solid #eee;">
+                    <label style="font-size: 14px; font-weight: bold; color: #1a3644; border-bottom: 2px solid #e0e6e8; padding-bottom: 5px; margin-bottom: 15px; display: block;">Asignación de Permisos y Módulos</label>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- ADMIN -->
+                        <label style="font-weight: bold; color: #dc3545;">
+                            <input type="checkbox" class="check-rol-edit" value="Administrador" id="edit-rol-admin" onchange="toggleAdmin('edit')"> Administrador (Acceso Total)
+                        </label>
+                        
+                        <!-- OPERADOR (Base) -->
+                        <label style="font-weight: bold; color: #555;">
+                            <input type="checkbox" class="check-rol-edit" value="Operador" checked disabled> Operador (Acceso Básico - Plataforma)
+                        </label>
+
+                        <!-- MÓDULO PATRIMONIO -->
+                        <div style="margin-left: 5px;">
+                            <label style="font-weight: bold; color: #1a3644;">
+                                <input type="checkbox" class="check-rol-edit" value="Patrimonio" id="edit-mod-patrimonio" onchange="toggleModulo('edit', 'patrimonio')"> 🏛️ Patrimonio
+                            </label>
+                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Inventario" onchange="checkPadre('edit', 'patrimonio')"> Inventario</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Alta" onchange="checkPadre('edit', 'patrimonio')"> Alta de Bien</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Informatica" onchange="checkPadre('edit', 'patrimonio')"> Informática</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Importar" onchange="checkPadre('edit', 'patrimonio')"> Importar Excel</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Historial" onchange="checkPadre('edit', 'patrimonio')"> Historial</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Barras" onchange="checkPadre('edit', 'patrimonio')"> Códigos de Barras</label>
+                            </div>
+                        </div>
+
+                        <!-- MÓDULO USUARIOS -->
+                        <div style="margin-left: 5px;">
+                            <label style="font-weight: bold; color: #1a3644;">
+                                <input type="checkbox" class="check-rol-edit" value="Usuarios" id="edit-mod-usuarios" onchange="toggleModulo('edit', 'usuarios')"> 👥 Usuarios y RRHH
+                            </label>
+                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Gestion" onchange="checkPadre('edit', 'usuarios')"> Gestión de Usuarios</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Mapa" onchange="checkPadre('edit', 'usuarios')"> Mapa de Puestos</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Plano" onchange="checkPadre('edit', 'usuarios')"> Editor de Plano</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Auditoria" onchange="checkPadre('edit', 'usuarios')"> Auditoría de Accesos</label>
+                            </div>
+                        </div>
+
+                        <!-- MÓDULO SISTEMAS -->
+                        <div style="margin-left: 5px;">
+                            <label style="font-weight: bold; color: #1a3644;">
+                                <input type="checkbox" class="check-rol-edit" value="Sistemas" id="edit-mod-sistemas" onchange="toggleModulo('edit', 'sistemas')"> 💻 Sistemas
+                            </label>
+                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-sistemas" value="Sis_Aplicaciones" onchange="checkPadre('edit', 'sistemas')"> Gestión de Aplicaciones</label>
+                                <label><input type="checkbox" class="check-rol-edit sub-edit-sistemas" value="Sis_Permisos" onchange="checkPadre('edit', 'sistemas')"> Permisos</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                    <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cerrarEdicion()">Cancelar</button>
+                    <button type="submit" class="btn-action btn-approve">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- PANEL DE ALTA (Oculto) -->
+        <div id="panel-alta" class="card" style="display: none; margin-top: 30px; border-left: 5px solid #9ee4d3; transition: all 0.3s;">
+            <h3 style="color: #1a3644; margin-top: 0; margin-bottom: 5px;">Alta de Nuevo Usuario</h3>
+            <p style="font-size: 12px; color: #666; margin-bottom: 20px;">*La contraseña por defecto será su número de CUIL.</p>
+            <form id="form-alta" onsubmit="guardarAlta(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Nombre</label><input type="text" id="alta-nombre" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Apellido</label><input type="text" id="alta-apellido" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">CUIL</label><input type="text" id="alta-cuil" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Correo Electrónico</label><input type="email" id="alta-email" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Repartición</label><input type="text" id="alta-reparticion" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Puesto / Función</label><input type="text" id="alta-puesto" placeholder="Ej: Analista Contable" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+
+                <div style="grid-column: span 2;">
+                    <label style="font-size: 13px; font-weight: bold; color: #555;">Sector (Opcional)</label>
+                    <div style="display: flex; gap: 5px;">
+                        <select id="alta-sector" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;">
+                            <option value="">-- Sin sector asignado --</option>
+                        </select>
+                        <button type="button" class="btn-action" style="background:#58a598; color:white; padding: 0 10px; font-size: 14px;" onclick="abrirModalEditarSector('alta-sector')" title="Editar Sector Seleccionado">✏️</button>
+                        <button type="button" class="btn-action" style="background:#1a3644; color:white; padding: 0 12px; font-size: 16px;" onclick="abrirModalSector()" title="Crear Sector Nuevo">+</button>
+                    </div>
+                </div>
+                
+                <!-- ✨ NUEVO ÁRBOL DE PERMISOS: ALTA ✨ -->
+                <div style="grid-column: span 2; background: #f9fbfb; padding: 15px; border-radius: 6px; border: 1px solid #eee;">
+                    <label style="font-size: 14px; font-weight: bold; color: #1a3644; border-bottom: 2px solid #e0e6e8; padding-bottom: 5px; margin-bottom: 15px; display: block;">Asignación de Permisos y Módulos</label>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <!-- ADMIN -->
+                        <label style="font-weight: bold; color: #dc3545;">
+                            <input type="checkbox" class="check-rol-alta" value="Administrador" id="alta-rol-admin" onchange="toggleAdmin('alta')"> Administrador (Acceso Total)
+                        </label>
+                        
+                        <!-- OPERADOR (Base) -->
+                        <label style="font-weight: bold; color: #555;">
+                            <input type="checkbox" class="check-rol-alta" value="Operador" checked disabled> Operador (Acceso Básico - Plataforma)
+                        </label>
+
+                        <!-- MÓDULO PATRIMONIO -->
+                        <div style="margin-left: 5px;">
+                            <label style="font-weight: bold; color: #1a3644;">
+                                <input type="checkbox" class="check-rol-alta" value="Patrimonio" id="alta-mod-patrimonio" onchange="toggleModulo('alta', 'patrimonio')"> 🏛️ Patrimonio
+                            </label>
+                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Inventario" onchange="checkPadre('alta', 'patrimonio')"> Inventario</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Alta" onchange="checkPadre('alta', 'patrimonio')"> Alta de Bien</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Informatica" onchange="checkPadre('alta', 'patrimonio')"> Informática</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Importar" onchange="checkPadre('alta', 'patrimonio')"> Importar Excel</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Historial" onchange="checkPadre('alta', 'patrimonio')"> Historial</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Barras" onchange="checkPadre('alta', 'patrimonio')"> Códigos de Barras</label>
+                            </div>
+                        </div>
+
+                        <!-- MÓDULO USUARIOS -->
+                        <div style="margin-left: 5px;">
+                            <label style="font-weight: bold; color: #1a3644;">
+                                <input type="checkbox" class="check-rol-alta" value="Usuarios" id="alta-mod-usuarios" onchange="toggleModulo('alta', 'usuarios')"> 👥 Usuarios y RRHH
+                            </label>
+                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Gestion" onchange="checkPadre('alta', 'usuarios')"> Gestión de Usuarios</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Mapa" onchange="checkPadre('alta', 'usuarios')"> Mapa de Puestos</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Plano" onchange="checkPadre('alta', 'usuarios')"> Editor de Plano</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Auditoria" onchange="checkPadre('alta', 'usuarios')"> Auditoría de Accesos</label>
+                            </div>
+                        </div>
+
+                        <!-- MÓDULO SISTEMAS -->
+                        <div style="margin-left: 5px;">
+                            <label style="font-weight: bold; color: #1a3644;">
+                                <input type="checkbox" class="check-rol-alta" value="Sistemas" id="alta-mod-sistemas" onchange="toggleModulo('alta', 'sistemas')"> 💻 Sistemas
+                            </label>
+                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-sistemas" value="Sis_Aplicaciones" onchange="checkPadre('alta', 'sistemas')"> Gestión de Aplicaciones</label>
+                                <label><input type="checkbox" class="check-rol-alta sub-alta-sistemas" value="Sis_Permisos" onchange="checkPadre('alta', 'sistemas')"> Permisos</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                    <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cerrarAlta()">Cancelar</button>
+                    <button type="submit" class="btn-action btn-approve" style="background:#58a598;">Crear Usuario</button>
+                </div>
+            </form>
+        </div>
+
+    </main>
+    
+    <!-- MODAL PARA CREAR SECTOR CON COLOR -->
+    <div id="modal-backdrop-sector" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998;"></div>
+    <div id="modal-sector" class="card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 999; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 320px;">
+        <h3 style="color: #1a3644; margin-top: 0;">Crear Nuevo Sector</h3>
+        <div style="margin-bottom: 15px;">
+            <label style="font-size: 13px; font-weight: bold; color: #555;">Nombre del Sector</label>
+            <input type="text" id="nuevo-sector-nombre" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">Color Distintivo</label>
+            <input type="color" id="nuevo-sector-color" value="#1a3644" style="width: 100%; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cerrarModalSector()">Cancelar</button>
+            <button type="button" class="btn-action btn-approve" onclick="guardarNuevoSector()">Guardar</button>
+        </div>
+    </div>
+
+    <!-- MODAL PARA EDITAR SECTOR -->
+    <div id="modal-backdrop-editar-sector" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998;"></div>
+    <div id="modal-editar-sector" class="card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 999; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 320px;">
+        <h3 style="color: #1a3644; margin-top: 0;">Editar Sector</h3>
+        <input type="hidden" id="edit-sector-id">
+        <div style="margin-bottom: 15px;">
+            <label style="font-size: 13px; font-weight: bold; color: #555;">Nombre del Sector</label>
+            <input type="text" id="edit-sector-nombre" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="font-size: 13px; font-weight: bold; color: #555; display: block; margin-bottom: 5px;">Color Distintivo</label>
+            <input type="color" id="edit-sector-color" style="width: 100%; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cerrarModalEditarSector()">Cancelar</button>
+            <button type="button" class="btn-action btn-approve" onclick="guardarEdicionSector()">Actualizar</button>
+        </div>
+    </div>
+
+    <script src="/archivos/js/app.js"></script> <!-- Carga Navbar y Chat -->
+    <script src="/archivos/js/notificaciones.js"></script> <!-- Avisos -->
+    <script src="/archivos/js/chat.js"></script> <!-- MSN -->
+    <script src="/archivos/js/usuarios.js"></script> <!-- Lógica de esta página -->
+    
+</body>
+</html>

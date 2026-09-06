@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informática - Patrimonio | Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/patrimonio.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    
+    <div class="main-layout">
+        <main class="patrimonio-container" style="margin-left: 260px; padding: 20px;">
+            <h2>Inventario de Informática</h2>
+            
+            <div style="margin-bottom: 25px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; gap: 15px; align-items: center;">
+                <label style="font-weight: bold; color: #1a3644;">Filtrar por Tipo:</label>
+                
+                <select id="select-tipo-principal" class="select-rol" style="width: 200px; padding: 8px;">
+                    <option value="">Seleccione un tipo...</option>
+                    <option value="PC">PC</option>
+                    <option value="Notebook">Notebook</option>
+                    <option value="Scanner">Scanner</option>
+                    <option value="Impresora">Impresora</option>
+                    <option value="Otros">Otros</option>
+                </select>
+
+                <select id="select-tipo-otro" class="select-rol" style="width: 250px; padding: 8px; display: none;">
+                    <option value="OTROS_GENERAL">Todos los Otros</option>
+                    <!-- Inyectado por JS -->
+                </select>
+            </div>
+
+            <h3 id="titulo-tabla" style="margin-bottom: 15px; color: #1a3644; display: none;"></h3>
+
+            <div class="table-container" style="display: none;" id="contenedor-tabla">
+                <table class="patrimonio-table" id="tabla-informatica">
+                    <thead id="tabla-head">
+                        <!-- Cabeceras generadas por JS -->
+                    </thead>
+                    <tbody id="tabla-body">
+                        <!-- Filas generadas por JS -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- ✨ MODAL DE ASIGNACIÓN ✨ -->
+    <div id="modal-asignar" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 25px; border-radius: 8px; width: 450px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            <h3 style="margin-top: 0; color: #1a3644; border-bottom: 1px solid #ccc; padding-bottom: 10px;">Asignar Equipo: <span id="asignar-nro-inv" style="color: #fd7e14;"></span></h3>
+            
+            <form id="form-asignar">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px;">Usuario Responsable (Custodia)</label>
+                    <select id="asignar-usuario" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <option value="">-- Sin Asignar / Devolver a Stock --</option>
+                        <!-- Las opciones se cargarán con JS -->
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px;">Ubicación Física (Puesto)</label>
+                    <input type="text" id="asignar-puesto" placeholder="Ej: PB1, 875, HOME..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <small style="color: #666; font-size: 11px;">Use "HOME" para indicar modalidad Teletrabajo.</small>
+                </div>
+
+                <div style="text-align: right;">
+                    <button type="button" class="btn-action" style="background-color: #6c757d; color: white;" onclick="cerrarModalAsignar()">Cancelar</button>
+                    <button type="submit" class="btn-action" style="background-color: #28a745; color: white;">Guardar Asignación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts Globales y Modulares -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/patrimonio.js"></script>
+    <!-- ✨ NUEVO ARCHIVO ESPECÍFICO DE INFORMÁTICA -->
+    <script src="/archivos/js/patrimonio_informatica.js"></script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo Bien | Patrimonio</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/patrimonio.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    
+    <div class="main-layout">
+        <main class="patrimonio-container" style="margin-left: 260px; padding: 20px;">
+            <div class="header-acciones">
+                <h2>Alta de Nuevo Bien Patrimonial</h2>
+                <button class="btn-patrimonio" style="background-color: #6c757d;" onclick="window.location.href='/patrimonio-vista'">Volver al Inventario</button>
+            </div>
+            
+            <div id="mensaje-form" style="display: none; padding: 10px; margin-bottom: 15px; border-radius: 4px;"></div>
+
+            <form id="form-nuevo-bien" class="patrimonio-form" style="max-width: 900px; margin-top: 20px;">
+                
+                <!-- SECCIÓN: DATOS GENERALES -->
+                <h3 style="margin-bottom: 15px; color: #1a3644; border-bottom: 2px solid #eee; padding-bottom: 5px;">Datos Generales</h3>
+                
+                <!-- Fila 1 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="numero_inventario">Nº Inventario Base *</label>
+                        <input type="text" id="numero_inventario" name="numero_inventario" required style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="cantidad">Cantidad a generar *</label>
+                        <input type="number" id="cantidad" name="cantidad" value="1" min="1" required style="width: 100%; padding: 8px;">
+                        <small style="color: #666; font-size: 12px;">Genera números consecutivos automáticamente.</small>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="numero_migrado">Nº Migrado</label>
+                        <input type="text" id="numero_migrado" name="numero_migrado" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila 2 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="institucional">Institucional</label>
+                        <input type="text" id="institucional" name="institucional" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="cuenta">Cuenta</label>
+                        <input type="text" id="cuenta" name="cuenta" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila 3 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="rubro_patrimonial_numero">Rubro Patrimonial Número</label>
+                        <input type="text" id="rubro_patrimonial_numero" name="rubro_patrimonial_numero" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label for="rubro_patrimonial_descripcion">Rubro Patrimonial Descripción</label>
+                        <input type="text" id="rubro_patrimonial_descripcion" name="rubro_patrimonial_descripcion" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila 4 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="descripcion_item">Descripción del Item</label>
+                        <input type="text" id="descripcion_item" name="descripcion_item" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="descripcion_bien">Descripción del Bien</label>
+                        <input type="text" id="descripcion_bien" name="descripcion_bien" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila 5 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="marca">Marca</label>
+                        <input type="text" id="marca" name="marca" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="modelo">Modelo</label>
+                        <input type="text" id="modelo" name="modelo" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="serie">Serie</label>
+                        <input type="text" id="serie" name="serie" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="anio">Año</label>
+                        <input type="text" id="anio" name="anio" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila 6 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="reparticion">Repartición</label>
+                        <input type="text" id="reparticion" name="reparticion" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="usuario">Usuario (Responsable)</label>
+                        <input type="text" id="usuario" name="usuario" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="estado">Estado</label>
+                        <input type="text" id="estado" name="estado" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- SECCIÓN: DATOS INFORMÁTICOS -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px; color: #1a3644; border-bottom: 2px solid #eee; padding-bottom: 5px;">Datos Informáticos (Opcional)</h3>
+
+                <!-- Fila IT 1 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="usuario_destino">Usuario/Destino</label>
+                        <input type="text" id="usuario_destino" name="usuario_destino" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="tipo">Tipo</label>
+                        <input type="text" id="tipo" name="tipo" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="nombre_de_equipo">Nombre de Equipo</label>
+                        <input type="text" id="nombre_de_equipo" name="nombre_de_equipo" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="puesto">Puesto</label>
+                        <input type="text" id="puesto" name="puesto" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila IT 2 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="procesador">Procesador</label>
+                        <input type="text" id="procesador" name="procesador" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="motherboard">Motherboard</label>
+                        <input type="text" id="motherboard" name="motherboard" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="memoria">Memoria RAM</label>
+                        <input type="text" id="memoria" name="memoria" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="disco">Disco</label>
+                        <input type="text" id="disco" name="disco" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Fila IT 3 -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="monitor">Monitor</label>
+                        <input type="text" id="monitor" name="monitor" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="serie_monitor">Serie Monitor</label>
+                        <input type="text" id="serie_monitor" name="serie_monitor" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="numero_inventario_monitor">Nº Inventario Monitor</label>
+                        <input type="text" id="numero_inventario_monitor" name="numero_inventario_monitor" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- SECCIÓN: DATOS CONTABLES Y OBSERVACIONES -->
+                <h3 style="margin-top: 30px; margin-bottom: 15px; color: #1a3644; border-bottom: 2px solid #eee; padding-bottom: 5px;">Datos Contables y Finales</h3>
+
+                <!-- Fila Montos -->
+                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="monto_original">Monto Original ($)</label>
+                        <input type="number" step="0.01" id="monto_original" name="monto_original" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="monto_actualizado">Monto Actualizado ($)</label>
+                        <input type="number" step="0.01" id="monto_actualizado" name="monto_actualizado" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="monto_residual">Monto Residual ($)</label>
+                        <input type="number" step="0.01" id="monto_residual" name="monto_residual" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <!-- Descripción Detallada (fila completa) -->
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label for="descripcion_detallada">Descripción Detallada (Opcional)</label>
+                    <textarea id="descripcion_detallada" name="descripcion_detallada" rows="2" placeholder="Detalles adicionales del bien..." style="width: 100%; padding: 8px; resize: vertical;"></textarea>
+                </div>
+
+                <button type="submit" class="btn-patrimonio" style="width: 100%; padding: 12px; font-size: 16px; font-weight: bold;">Guardar Bien Patrimonial</button>
+
+                <!-- Observaciones (fila completa, al final) -->
+                <div class="form-group" style="margin-bottom: 20px; margin-top: 15px;">
+                    <label for="observaciones">Observaciones</label>
+                    <textarea id="observaciones" name="observaciones" rows="2" style="width: 100%; padding: 8px; resize: vertical;"></textarea>
+                </div>
+            </form>
+        </main>
+    </div>
+
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/patrimonio.js"></script>
+</body>
+</html>

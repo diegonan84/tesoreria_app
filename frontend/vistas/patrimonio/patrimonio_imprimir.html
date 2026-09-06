@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Imprimir Etiquetas | Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/imprimir_etiquetas.css">
+</head>
+<body>
+
+    <div class="controles">
+        <button onclick="window.print()">🖨️ Imprimir Etiquetas</button>
+        <button onclick="window.close()" style="background: #6c757d;">Cerrar Pestaña</button>
+    </div>
+
+    <div class="hoja-a4">
+        <div class="grilla-etiquetas" id="contenedor-etiquetas">
+            <!-- Las etiquetas se inyectarán aquí desde JS -->
+        </div>
+    </div>
+
+    <!-- ✨ 1. PRIMERO CARGAMOS LA LIBRERÍA DE CÓDIGOS DE BARRAS ✨ -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+    <!-- ✨ 2. DESPUÉS CARGAMOS TUS SCRIPTS ✨ -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/imprimir_etiquetas.js"></script>
+</body>
+</html>

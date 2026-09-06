@@ -1,0 +1,225 @@
+
+/* PANEL SUPERIOR DE GESTIÓN DE MAPAS */
+.panel-gestion { 
+    background: #f9fbfb;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    display: flex;
+    gap: 15px; border: 1px solid #e0e6e8;
+    align-items: center;
+}
+.toolbar-matriz {
+    background: #fff; 
+    padding: 15px; 
+    border-radius: 8px; 
+    margin-bottom: 20px; 
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+    flex-wrap: wrap; 
+}
+.input-group {
+    display: flex; 
+    flex-direction: column; 
+    gap: 5px; 
+}
+.input-group label { 
+    font-size: 12px;
+     font-weight: bold;
+      color: #555;
+}
+.input-group input { padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px; 
+    font-weight: bold; 
+}
+
+#matriz-container { 
+    display: grid;
+    gap: 15px;
+    background: #f0f4f8;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px dashed #b8c2cc;
+    overflow-x: auto;
+    justify-content: center;
+}
+
+.celda-vacia {
+    background: rgba(255,255,255,0.5);
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.celda-vacia:hover {
+    background: #e0e6e8;
+    border-color: #58a598;
+}
+
+.celda-activa {
+    background: #fff;
+    border: 2px solid #58a598;
+    border-radius: 8px;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.controles-edicion {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    gap: 5px;
+    background: rgba(26, 54, 68, 0.9);
+    padding: 6px;
+    border-radius: 6px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.celda-activa:hover .controles-edicion {
+    opacity: 1;
+}
+.btn-mini {
+    background: white;
+    border: none;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.btn-mini:hover {
+    background: #9ee4d3;
+}
+
+.mesa-falsa {
+    background: #e5e7eb;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
+    height: 40px;
+    width: 90%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+.mapa-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.grilla-puestos {
+    flex: 3;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 15px;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.puesto-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fdfdfd;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 5px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.puesto-card:hover {
+    transform: scale(1.05);
+    border-color: #58a598;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.escritorio {
+    width: 100%;
+    height: 45px;
+    border: 1px solid #bbb;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.panel-obs {
+    flex: 1;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 5px solid #dc3545;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    max-height: 500px;
+    overflow-y: auto;
+}
+/* ✨ NUEVO: ESTILOS EXCLUSIVOS PARA IMPRESIÓN Y PDF */
+/* ✨ ESTILOS EXCLUSIVOS PARA IMPRESIÓN Y PDF (AJUSTE A4 AUTOMÁTICO) */
+@media print {
+    @page {
+        size: A4; /* Fuerza la hoja a A4 y Orientación Horizontal (ideal para planos) */
+        margin: 10mm; /* Un margen prolijo para que no se pegue al borde */
+    }
+
+    /* 1. Ocultamos la interfaz completa (Navbar, Sidebar, Botones, Chat) */
+    nav, aside, .chat-widget, #panel-observaciones, .panel-gestion {
+        display: none !important;
+    }
+    
+    /* Oculta la cabecera donde está el título y los botones de exportar */
+    .dashboard-body > div:first-child {
+        display: none !important;
+    }
+
+    /* 2. Expandimos el lienzo al 100% de la hoja física */
+    body, .dashboard-body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        width: 100%;
+    }
+
+    /* 3. Ajustamos el mapa */
+    #grilla-mapa {
+        position: static !important; 
+        width: 100% !important;
+        justify-content: center !important;
+        /* El navegador ajustará la escala automáticamente, pero aplicamos 
+            un zoom-out de prevención para que las celdas de 120px entren perfecto */
+        zoom: 0.75; 
+    }
+
+    /* 4. Forzamos la impresión de los fondos de color de los usuarios */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}

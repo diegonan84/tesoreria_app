@@ -1,0 +1,27 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Datos sensibles / configuración local
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Archivos zip temporales
+*.zip

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Notificaciones - Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside> 
+    <div id="global-chat" class="chat-widget"></div>   
+    
+    <!-- ÁREA DE TRABAJO -->
+    <main class="dashboard-body">
+        <h2 style="color: #1a3644; margin-bottom: 20px;">Gestión de Notificaciones (Admin)</h2>
+        <div class="card" style="border-top: 4px solid #ffcc00; max-width: 600px;">
+            <p style="font-size: 13px; color: #555; margin-bottom: 20px;">Al enviar un aviso, todos los usuarios activos verán el globo rojo en su campana inmediatamente.</p>
+            
+            <form id="form-notif" onsubmit="enviarNuevaNotificacion(event)" style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <label style="font-size: 13px; font-weight: bold; color: #333;">Título del Aviso</label>
+                    <input type="text" id="notif-titulo" required maxlength="50" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;">
+                </div>
+                <div>
+                    <label style="font-size: 13px; font-weight: bold; color: #333;">Mensaje (Máximo 200 caracteres)</label>
+                    <textarea id="notif-mensaje" required maxlength="200" rows="4" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; resize: none;"></textarea>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button type="submit" class="btn-action btn-approve" style="background: #1a3644;">Publicar Notificación Global</button>
+                </div>
+            </form>
+        </div>
+    </main>
+    
+    <!-- Scripts limpios y en orden -->
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+</body>
+</html>

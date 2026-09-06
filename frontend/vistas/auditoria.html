@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Auditoría de Accesos - Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <style>
+        .filtros-auditoria {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .filtro-grupo { display: flex; flex-direction: column; gap: 4px; }
+        .filtro-grupo label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; }
+        .filtro-grupo input, .filtro-grupo select {
+            padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 13px; min-width: 150px;
+        }
+        .btn-filtrar { padding: 6px 16px; background: #1a3644; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-filtrar:hover { background: #2d5a6e; }
+        .btn-limpiar { padding: 6px 12px; background: #e0e6e8; color: #333; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .paginacion { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 13px; color: #666; }
+        .paginacion button { padding: 4px 12px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer; }
+        .paginacion button:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+    
+    <main class="dashboard-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="color: #1a3644; margin: 0;">Auditoría del Sistema</h2>
+            <button class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cargarAuditoria()">Refrescar Datos</button>
+        </div>
+
+        <div class="filtros-auditoria">
+            <div class="filtro-grupo">
+                <label>Buscar</label>
+                <input type="text" id="filtro-buscar" placeholder="Nombre, acción o detalle...">
+            </div>
+            <div class="filtro-grupo">
+                <label>Acción</label>
+                <select id="filtro-accion"><option value="">Todas</option></select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Fecha Desde</label>
+                <input type="datetime-local" id="filtro-fecha-desde">
+            </div>
+            <div class="filtro-grupo">
+                <label>Fecha Hasta</label>
+                <input type="datetime-local" id="filtro-fecha-hasta">
+            </div>
+            <button class="btn-filtrar" onclick="cargarAuditoria(0)">Filtrar</button>
+            <button class="btn-limpiar" onclick="limpiarFiltros()">Limpiar</button>
+        </div>
+
+        <div id="contador-registros" style="font-size: 13px; color: #666; margin-bottom: 8px;"></div>
+
+        <table class="table-ba">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">Fecha y Hora</th>
+                    <th style="width: 22%;">Operador</th>
+                    <th style="width: 18%;">Acción</th>
+                    <th style="width: 25%;">Detalle</th>
+                    <th style="width: 15%;">IP / PC</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-auditoria">
+                <tr><td colspan="5" style="text-align: center;">Cargando registros...</td></tr>
+            </tbody>
+        </table>
+
+        <div class="paginacion">
+            <span id="info-paginacion"></span>
+            <div>
+                <button id="btn-prev" onclick="cargarAuditoria(paginaActual - 1)" disabled>Anterior</button>
+                <button id="btn-next" onclick="cargarAuditoria(paginaActual + 1)" disabled>Siguiente</button>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/usuarios.js"></script>
+</body>
+</html>
