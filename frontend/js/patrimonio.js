@@ -352,7 +352,34 @@ const PatrimonioModulo = (function() {
                 }
 
                 const result = await response.json();
-                alert(`${result.mensaje}\nNuevos: ${result.resumen.nuevos_creados}\nActualizados: ${result.resumen.bienes_actualizados}\nTransferidos (Faltantes): ${result.resumen.bienes_transferidos}\nOmitidos: ${result.resumen.omitidos_o_sin_cambios}`);
+                let mensaje = `${result.mensaje}\nNuevos: ${result.resumen.nuevos_creados}\nActualizados: ${result.resumen.bienes_actualizados}\nTransferidos (Faltantes): ${result.resumen.bienes_transferidos}\nOmitidos: ${result.resumen.omitidos_o_sin_cambios}`;
+
+                const desactualizados = result.resumen.usuarios_desactualizados;
+                const listaDes = desactualizados ? Object.keys(desactualizados) : [];
+
+                if (result.resumen.usuarios_reactivados > 0) {
+                    mensaje += `\nReactivados: ${result.resumen.usuarios_reactivados}`;
+                } else if (listaDes.length > 0) {
+                    const nombres = listaDes.join(', ');
+                    const reactivar = confirm(`ATENCIÓN: ${listaDes.length} usuario(s) listados en el Excel están dados de baja en el sistema:\n\n${nombres}\n\n¿Desea reactivarlos a TODOS y vincularlos?`);
+                    if (reactivar) {
+                        formData.append('reactivar_desactualizados', '1');
+                        const resReactiva = await fetch(`${API_BASE_URL}/importar`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${jwtToken}` },
+                            body: formData
+                        });
+                        if (resReactiva.ok) {
+                            const r2 = await resReactiva.json();
+                            alert(`✅ Se reactivaron ${r2.resumen.usuarios_reactivados} usuario(s).\n${r2.mensaje}`);
+                        } else {
+                            const err2 = await resReactiva.json();
+                            throw new Error(err2.detail || 'Error al reactivar usuarios');
+                        }
+                    }
+                }
+
+                alert(mensaje);
                 
                 paginaActual = 0;
                 cargarInventario();
@@ -447,7 +474,34 @@ const PatrimonioModulo = (function() {
                 }
 
                 const result = await response.json();
-                alert(`${result.mensaje}\nNuevos: ${result.resumen.nuevos_creados}\nActualizados: ${result.resumen.bienes_actualizados}\nOmitidos/Vacíos: ${result.resumen.omitidos_o_sin_cambios}`);
+                let mensaje = `${result.mensaje}\nNuevos: ${result.resumen.nuevos_creados}\nActualizados: ${result.resumen.bienes_actualizados}\nOmitidos/Vacíos: ${result.resumen.omitidos_o_sin_cambios}`;
+
+                const desactualizados = result.resumen.usuarios_desactualizados;
+                const listaDes = desactualizados ? Object.keys(desactualizados) : [];
+
+                if (result.resumen.usuarios_reactivados > 0) {
+                    mensaje += `\nReactivados: ${result.resumen.usuarios_reactivados}`;
+                } else if (listaDes.length > 0) {
+                    const nombres = listaDes.join(', ');
+                    const reactivar = confirm(`ATENCIÓN: ${result.resumen.sin_vinculacion} registro(s) no se vincularon porque ${listaDes.length} usuario(s) están dados de baja en el sistema:\n\n${nombres}\n\n¿Desea reactivarlos a TODOS y vincularlos?`);
+                    if (reactivar) {
+                        formData.append('reactivar_desactualizados', '1');
+                        const resReactiva = await fetch(`${API_BASE_URL}/importar-informatica`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${jwtToken}` },
+                            body: formData
+                        });
+                        if (resReactiva.ok) {
+                            const r2 = await resReactiva.json();
+                            alert(`✅ Se reactivaron ${r2.resumen.usuarios_reactivados} usuario(s).\n${r2.mensaje}`);
+                        } else {
+                            const err2 = await resReactiva.json();
+                            throw new Error(err2.detail || 'Error al reactivar usuarios');
+                        }
+                    }
+                }
+
+                alert(mensaje);
                 
                 paginaActual = 0;
                 cargarInventario();

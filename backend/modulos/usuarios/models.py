@@ -25,6 +25,7 @@ class User(Base):
     sector = relationship("Sector", back_populates="usuarios")
     puesto = Column(String, nullable=True)
     activo = Column(Boolean, default=False)
+    aprobado = Column(Boolean, default=False)
     roles = Column(String, default="Operador")
     tokens = relationship("PasswordResetToken", back_populates="user")
 

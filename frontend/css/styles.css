@@ -353,6 +353,7 @@ body {
 }
 .badge-pending { background-color: #ffcc00; color: #0b3a47; }
 .badge-approved { background-color: #9ee4d3; color: #0b3a47; }
+.badge-rejected { background-color: #f5b7b1; color: #7b241c; }
 
 /* Botones de Acción y Selectores */
 .btn-action { 

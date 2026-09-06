@@ -16,11 +16,159 @@ from fastapi import Request
 from backend.modulos.auth.dependencies import verificar_usuario_autenticado
 
 
+def es_nombre_persona(texto):
+    """Convención del usuario para el campo 'Usuario/Destino' del Excel:
+    si el texto tiene 2+ palabras puramente alfabéticas (nombre y apellido),
+    es una PERSONA (del sistema si tiene CUIL, o EXTERNA si no lo tiene).
+    Retorna True para persona externa, False → lugar."""
+    if not texto:
+        return False
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(texto))
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn").lower()
+    palabras = re.sub(r"\s+", " ", t).strip().split()
+    if len(palabras) < 2:
+        return False
+    return all(p.isalpha() for p in palabras)
+
+
 class PatrimonioService:
     def __init__(self, db: Session):
         self.db = db 
         self.repo = PatrimonioRepository(db)
         self.historial_repo = PatrimonioHistorialRepository(db)
+
+    # ------------------------------------------------------------------
+    # VINCULACIÓN USUARIO / DESTINO (LUGAR) DESDE TEXTO LIBRE
+    # ------------------------------------------------------------------
+    def _normalizar_texto(self, texto):
+        """Quita acentos, pasa a minúsculas y colapsa espacios."""
+        if not texto:
+            return ""
+        import unicodedata
+        texto = unicodedata.normalize("NFD", str(texto))
+        texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+        return re.sub(r"\s+", " ", texto).strip().lower()
+
+    def _resolver_usuario_por_texto(self, texto):
+        """Busca un usuario por CUIL, email o nombre/apellido (sin acentos).
+        Solo vincula si hay match inequívoco."""
+        if not texto:
+            return None
+        from backend.modulos.usuarios.models import User
+        texto_raw = str(texto)
+        buscado = self._normalizar_texto(texto_raw)
+        if not buscado:
+            return None
+
+        # 1) CUIL embebido en el texto (ej: "Ana (CUIL: 27-12345678-4)") → vínculo definitivo
+        m_cuil = re.search(r"\d{2}[\s-]?\d{7,8}[\s-]?\d", texto_raw)
+        cuil_digitos = re.sub(r"\D", "", m_cuil.group(0)) if m_cuil else None
+
+        # 2) Nombre sin el paréntesis "(cuil: ...)" para matchear nombre completo
+        buscado_sin_cuil = re.sub(r"\s*\(\s*cuil\s*[:a-z]*\)", "", buscado, flags=re.IGNORECASE).strip()
+
+        coincidencia_parcial = []
+        for u in self.db.query(User).all():
+            cuil_norm = self._normalizar_texto(u.cuil)
+            cuil_user_digitos = re.sub(r"\D", "", cuil_norm or "")
+            email_norm = self._normalizar_texto(u.email)
+            nombres = {
+                self._normalizar_texto(f"{u.nombre} {u.apellido}"),
+                self._normalizar_texto(f"{u.apellido} {u.nombre}"),
+                self._normalizar_texto(f"{u.apellido}, {u.nombre}"),
+                self._normalizar_texto(u.nombre),
+                self._normalizar_texto(u.apellido),
+            }
+            # Igualdad por CUIL (11 dígitos, con o sin guiones)
+            if cuil_digitos and cuil_user_digitos and cuil_user_digitos == cuil_digitos:
+                return u
+            if (buscado_sin_cuil in nombres or buscado in nombres
+                    or buscado == cuil_norm or buscado == email_norm):
+                return u
+            # Búsqueda parcial: "Pérez" dentro de "Pérez, Juan" o viceversa
+            if (self._normalizar_texto(u.nombre) in buscado
+                    or self._normalizar_texto(u.apellido) in buscado
+                    or buscado in self._normalizar_texto(u.nombre)
+                    or buscado in self._normalizar_texto(u.apellido)):
+                coincidencia_parcial.append(u)
+
+        if len(coincidencia_parcial) == 1:
+            return coincidencia_parcial[0]
+        return None
+
+    def _resolver_destino_por_nombre(self, nombre, reparticion=None, crear=False):
+        """Busca un lugar (Destino) por nombre normalizado. Si crear=True y no existe, lo crea."""
+        if not nombre:
+            return None
+        buscado = self._normalizar_texto(nombre)
+        if not buscado:
+            return None
+        for d in self.db.query(models.Destino).all():
+            if self._normalizar_texto(d.nombre) == buscado:
+                return d
+        if not crear:
+            return None
+        destino = models.Destino(nombre=str(nombre).strip()[:255], reparticion=reparticion, activo=True)
+        self.db.add(destino)
+        self.db.flush()
+        return destino
+
+    def _vincular_texto_a_destino(self, texto, reparticion=None, crear_destino=False):
+        """Intenta vincular texto libre ('Usuario/Destino' u 'Usuario') a un usuario real.
+        Si no matchea persona, intenta con un Destino (lugar) ya registrado.
+        Si tampoco → (None, None, None): queda pendiente de revisión manual.
+
+        Devuelve (usuario, destino, destino_texto):
+          - usuario: objeto User o None
+          - destino: objeto Destino o None
+          - destino_texto: texto canónico a guardar para legibilidad
+        """
+        destino_texto = None
+        usuario = self._resolver_usuario_por_texto(texto)
+        if usuario:
+            destino_texto = f"{usuario.nombre} {usuario.apellido} (CUIL: {usuario.cuil})"
+            return usuario, None, destino_texto
+        # No es (o no matchea) una persona → buscamos/creamos un lugar
+        destino = self._resolver_destino_por_nombre(texto, reparticion=reparticion, crear=crear_destino)
+        if destino:
+            destino_texto = str(texto).strip()
+        return None, destino, destino_texto
+
+    def _aplicar_vinculacion(self, datos_fila, fila_origen=None, crear_destino=False, reactivar_desactualizados=False):
+        """Dado un dict de datos de fila de Excel, resuelve usuario_id / destino_id.
+        Devuelve (vinculado_a_usuario, vinculado_a_lugar, externo, sin_vincular, reactivado, usuario_obj).
+        - externo: texto con nombre y apellido sin CUIL (persona externa al sistema)
+        - sin_vincular: texto que no es persona ni lugar → queda para revisión
+        - reactivado: True si el usuario matcheado estaba dado de baja y se reactivó en esta pasada
+        - usuario_obj: usuario matcheado; si el usuario está dado de baja y NO se reactiva,
+          se devuelve aquí con todos los flags en False (queda para decisión del administrador)"""
+        texto = datos_fila.get("usuario_destino") or datos_fila.get("usuario")
+        reparticion = datos_fila.get("reparticion")
+        if not texto or not str(texto).strip():
+            return False, False, False, False, False, None
+
+        usuario, destino, destino_texto = self._vincular_texto_a_destino(texto, reparticion=reparticion, crear_destino=crear_destino)
+        if usuario:
+            # Usuario dado de baja previamente (aprobado to True, activo False) → preguntar reactivación
+            if usuario.aprobado and not usuario.activo:
+                if not reactivar_desactualizados:
+                    return False, False, False, True, False, usuario
+                usuario.activo = True
+                datos_fila["usuario_id"] = usuario.id
+                datos_fila["usuario_destino"] = destino_texto
+                return True, False, False, False, True, usuario
+            datos_fila["usuario_id"] = usuario.id
+            datos_fila["usuario_destino"] = destino_texto
+            return True, False, False, False, False, usuario
+        if destino:
+            datos_fila["destino_id"] = destino.id
+            datos_fila["usuario_destino"] = destino_texto
+            return False, True, False, False, False, None
+        # Ni usuario ni lugar: si es nombre y apellido → persona externa; si no → pendiente
+        if es_nombre_persona(texto):
+            return False, False, True, False, False, None
+        return False, False, False, True, False, None
 
     def _filtros_busqueda_avanzada(self, query, busqueda: str):
         """Búsqueda unificada por Nº de inventario:
@@ -253,7 +401,7 @@ class PatrimonioService:
         )
         self.historial_repo.create(historial)
     
-    async def importar_excel(self, file: UploadFile, usuario: str, ip: str):
+    async def importar_excel(self, file: UploadFile, usuario: str, ip: str, reactivar_desactualizados: bool = False):
         contenido = await file.read()
         try:
             # 1. Cargamos el excel completo sin asumir que la fila 0 son los títulos
@@ -284,6 +432,13 @@ class PatrimonioService:
         modificaciones = 0
         omitidos = 0
         transferidos = 0
+        vinculados_usuario = 0
+        vinculados_lugar = 0
+        sin_vincular = 0
+        externos = 0
+        reactivados = 0
+        desactualizados = {}
+        pendientes = {}
 
         total_registros = len(df)
         bienes_a_crear = []
@@ -342,6 +497,26 @@ class PatrimonioService:
                 "monto_actualizado": procesar_monto(row, ['Monto Actualizado', 'monto_actualizado']),
                 "monto_residual": procesar_monto(row, ['Monto Residual', 'monto_residual'])
             }
+
+            # ✨ VINCULACIÓN USUARIO / DESTINO (LUGAR) DESDE EL TEXTO DEL EXCEL ✨
+            vu, vl, ext, sv, react, usuario_obj = self._aplicar_vinculacion(datos_fila, reactivar_desactualizados=reactivar_desactualizados)
+            if vu:
+                vinculados_usuario += 1
+                if react:
+                    reactivados += 1
+            elif vl:
+                vinculados_lugar += 1
+            elif ext:
+                externos += 1
+            elif sv:
+                sin_vincular += 1
+                if usuario_obj is not None and usuario_obj.aprobado and not usuario_obj.activo:
+                    nombre_des = f"{usuario_obj.nombre} {usuario_obj.apellido}".strip()
+                    desactualizados[nombre_des] = desactualizados.get(nombre_des, 0) + 1
+                else:
+                    texto_pendiente = str(datos_fila.get("usuario_destino") or datos_fila.get("usuario") or "").strip()
+                    if texto_pendiente:
+                        pendientes[texto_pendiente] = pendientes.get(texto_pendiente, 0) + 1
 
             bien_existente = self.db.query(models.Patrimonio).filter(models.Patrimonio.numero_inventario == nro_inv).first()
 
@@ -429,6 +604,13 @@ class PatrimonioService:
                     "bienes_actualizados": modificaciones,
                     "bienes_transferidos": transferidos,
                     "omitidos_o_sin_cambios": omitidos,
+                    "vinculados_a_usuario": vinculados_usuario,
+                    "vinculados_a_lugar": vinculados_lugar,
+                    "externos_identificados": externos,
+                    "sin_vinculacion": sin_vincular,
+                    "usuarios_reactivados": reactivados,
+                    "usuarios_desactualizados": desactualizados,
+                    "pendientes_de_revision": pendientes,
                     "archivo": file.filename
                 }
             }
@@ -661,7 +843,7 @@ class PatrimonioService:
         buffer.seek(0)
         return buffer
 
-    def asignar_equipo(self, numero_inventario: str, usuario_id: int, puesto: str, usuario_admin: str, ip: str):
+    def asignar_equipo(self, numero_inventario: str, usuario_id: int, puesto: str, usuario_admin: str, ip: str, destino_id: int = None, destino_nuevo: str = None):
         # 1. Buscamos el equipo
         bien = self.get_by_numero(numero_inventario)
         
@@ -669,14 +851,24 @@ class PatrimonioService:
         from backend.modulos.usuarios.models import User
         usuario_asignado = self.db.query(User).filter(User.id == usuario_id).first() if usuario_id else None
 
+        # 2b. Buscamos o creamos el lugar de destino
+        destino_asignado = None
+        if destino_id:
+            destino_asignado = self.db.query(models.Destino).filter(models.Destino.id == destino_id).first()
+        elif destino_nuevo:
+            destino_asignado = self._resolver_destino_por_nombre(destino_nuevo, crear=True)
+
         # Guardamos valores anteriores para el historial
         val_ant_usuario = bien.usuario_destino or "Sin asignar"
         val_ant_puesto = bien.puesto or "Sin puesto"
 
         # 3. Aplicamos la nueva lógica: Custodia + Ubicación
         bien.usuario_id = usuario_id
+        bien.destino_id = destino_asignado.id if destino_asignado else None
         if usuario_asignado:
             bien.usuario_destino = f"{usuario_asignado.nombre} {usuario_asignado.apellido} (CUIL: {usuario_asignado.cuil})"
+        elif destino_asignado:
+            bien.usuario_destino = destino_asignado.nombre
         else:
             bien.usuario_destino = None # Se desasignó
             
@@ -684,12 +876,12 @@ class PatrimonioService:
         bien.usuario_modificacion = usuario_admin
 
         # 4. Registramos en el historial
-        obs = f"Asignado a: {bien.usuario_destino or 'Nadie'} | Ubicación: {puesto or 'Depósito'}"
+        obs = f"Destino: {bien.usuario_destino or 'Depósito/Stock'} | Ubicación: {puesto or 'Depósito'}"
         self._registrar_historial(
             numero_inventario=bien.numero_inventario,
             usuario=usuario_admin,
             accion="ASIGNACION",
-            campo_modificado="usuario_id/puesto",
+            campo_modificado="usuario_id/destino_id/puesto",
             valor_anterior=f"{val_ant_usuario} en {val_ant_puesto}",
             valor_nuevo=obs,
             ip=ip,
@@ -700,7 +892,64 @@ class PatrimonioService:
         self.db.refresh(bien)
         return bien
 
-    async def importar_excel_informatica(self, file: UploadFile, usuario: str, ip: str):
+    def reconciliar_asignaciones(self, usuario_admin: str, ip: str):
+        """Recorre los bienes con texto de usuario/destino SIN vínculo (usuario_id y
+        destino_id NULL) e intenta resolverlos automáticamente.
+        Devuelve el detalle de lo vinculado y lo que sigue pendiente."""
+        resultado = {"vinculados_a_usuario": 0, "vinculados_a_lugar": 0, "pendientes": {}}
+
+        bienes = self.db.query(models.Patrimonio).filter(
+            or_(
+                models.Patrimonio.usuario_destino.isnot(None),
+                models.Patrimonio.usuario.isnot(None)
+            ),
+            models.Patrimonio.usuario_id.is_(None),
+            models.Patrimonio.destino_id.is_(None)
+        ).all()
+
+        for bien in bienes:
+            texto = bien.usuario_destino or bien.usuario
+            datos = {"usuario_destino": texto, "reparticion": bien.reparticion}
+
+            usuario, destino, destino_texto = self._vincular_texto_a_destino(texto, reparticion=bien.reparticion)
+            if usuario:
+                bien.usuario_id = usuario.id
+                bien.usuario_destino = destino_texto
+                bien.usuario_modificacion = usuario_admin
+                resultado["vinculados_a_usuario"] += 1
+                self._registrar_historial(
+                    numero_inventario=bien.numero_inventario,
+                    usuario=usuario_admin,
+                    accion="RECONCILIACION",
+                    campo_modificado="usuario_id",
+                    valor_anterior="Sin vínculo",
+                    valor_nuevo=destino_texto,
+                    ip=ip,
+                    observaciones="Vinculación automática de datos existentes"
+                )
+            elif destino:
+                bien.destino_id = destino.id
+                bien.usuario_destino = destino_texto
+                bien.usuario_modificacion = usuario_admin
+                resultado["vinculados_a_lugar"] += 1
+                self._registrar_historial(
+                    numero_inventario=bien.numero_inventario,
+                    usuario=usuario_admin,
+                    accion="RECONCILIACION",
+                    campo_modificado="destino_id",
+                    valor_anterior="Sin vínculo",
+                    valor_nuevo=destino_texto,
+                    ip=ip,
+                    observaciones="Vinculación automática de datos existentes"
+                )
+            else:
+                clave = bien.usuario_destino or bien.usuario or ""
+                resultado["pendientes"][clave] = resultado["pendientes"].get(clave, 0) + 1
+
+        self.db.commit()
+        return resultado
+
+    async def importar_excel_informatica(self, file: UploadFile, usuario: str, ip: str, reactivar_desactualizados: bool = False):
         import pandas as pd
         import io
         contenido = await file.read()
@@ -710,6 +959,10 @@ class PatrimonioService:
             raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel. Verifica que no esté corrupto. Error: {str(e)}")
 
         altas, modificaciones, omitidos, total_registros = 0, 0, 0, 0
+        vinculados_usuario, vinculados_lugar, sin_vincular, externos = 0, 0, 0, 0
+        reactivados = 0
+        desactualizados = {}
+        pendientes = {}
         bienes_a_crear, historiales = [], []
 
         def get_val(fila_actual, nombres_columna):
@@ -754,6 +1007,28 @@ class PatrimonioService:
                     "observaciones": get_val(row, ['Observaciones', 'observaciones']),
                 }
                 
+                # ✨ VINCULACIÓN USUARIO / DESTINO (LUGAR) DESDE EL TEXTO DEL EXCEL ✨
+                # La importación de Informática es la fuente autoritativa: si matchea
+                # sin ambigüedad, reemplaza; si no matchea, se registra como pendiente.
+                vu, vl, ext, sv, react, usuario_obj = self._aplicar_vinculacion(datos_fila, reactivar_desactualizados=reactivar_desactualizados)
+                if vu:
+                    vinculados_usuario += 1
+                    if react:
+                        reactivados += 1
+                elif vl:
+                    vinculados_lugar += 1
+                elif ext:
+                    externos += 1
+                elif sv:
+                    sin_vincular += 1
+                    if usuario_obj is not None and usuario_obj.aprobado and not usuario_obj.activo:
+                        nombre_des = f"{usuario_obj.nombre} {usuario_obj.apellido}".strip()
+                        desactualizados[nombre_des] = desactualizados.get(nombre_des, 0) + 1
+                    else:
+                        texto_pendiente = str(datos_fila.get("usuario_destino") or datos_fila.get("usuario") or "").strip()
+                        if texto_pendiente:
+                            pendientes[texto_pendiente] = pendientes.get(texto_pendiente, 0) + 1
+
                 estado_excel = get_val(row, ['Estado', 'estado'])
                 datos_fila = {k: v for k, v in datos_fila.items() if v is not None}
 
@@ -807,7 +1082,14 @@ class PatrimonioService:
                     "total_filas_leidas": total_registros,
                     "nuevos_creados": altas,
                     "bienes_actualizados": modificaciones,
-                    "omitidos_o_sin_cambios": omitidos
+                    "omitidos_o_sin_cambios": omitidos,
+                    "vinculados_a_usuario": vinculados_usuario,
+                    "vinculados_a_lugar": vinculados_lugar,
+                    "externos_identificados": externos,
+                    "sin_vinculacion": sin_vincular,
+                    "usuarios_reactivados": reactivados,
+                    "usuarios_desactualizados": desactualizados,
+                    "pendientes_de_revision": pendientes
                 }
             }
         except Exception as e:

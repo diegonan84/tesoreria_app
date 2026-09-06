@@ -65,8 +65,19 @@ function renderizarTabla() {
 
     usuariosGlobales.forEach(u => {
         const tr = document.createElement("tr");
-        const badgeActivo = u.activo ? `<span class="badge badge-approved">APROBADO</span>` : `<span class="badge badge-pending">PENDIENTE</span>`;
-        const btnAprobarBaja = u.activo ? `<button class="btn-action" style="background:#dc3545; color:white; margin-right:5px;" onclick="alert('Baja en desarrollo')">Dar de Baja</button>` : `<button class="btn-action btn-approve" style="margin-right:5px;" onclick="aprobarUsuario(${u.id})">Aprobar</button>`;
+        const inactivo = u.aprobado === true && u.activo === false;
+        let badgeActivo;
+        if (inactivo) badgeActivo = `<span class="badge badge-rejected">INHABILITADO</span>`;
+        else badgeActivo = u.activo ? `<span class="badge badge-approved">APROBADO</span>` : `<span class="badge badge-pending">PENDIENTE</span>`;
+
+        let btnEstado;
+        if (inactivo) {
+            btnEstado = `<button class="btn-action btn-approve" style="margin-right:5px;" onclick="darDeAlta(${u.id})">Dar de Alta</button>`;
+        } else if (u.activo) {
+            btnEstado = `<button class="btn-action" style="background:#dc3545; color:white; margin-right:5px;" onclick="darDeBaja(${u.id})">Dar de Baja</button>`;
+        } else {
+            btnEstado = `<button class="btn-action btn-approve" style="margin-right:5px;" onclick="aprobarUsuario(${u.id})">Aprobar</button>`;
+        }
         const btnModificar = `<button class="btn-action" style="background:#8ed1d4; color:#1a3644;" onclick="abrirEdicion(${u.id})">Modificar</button>`;
         const btnReset = `<button class="btn-mini" style="background: #ffc107; color: black; border: none; padding: 7px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 5px;" onclick="resetearClave(${u.id})">🔑 Reset Clave</button>`;
 
@@ -95,7 +106,7 @@ function renderizarTabla() {
             <td>${sectorHtml}</td>
             <td>${badgesRoles}</td>
             <td>${badgeActivo}</td>
-            <td style="white-space: nowrap;">${btnAprobarBaja} ${btnModificar} ${btnReset}</td>
+            <td style="white-space: nowrap;">${btnEstado} ${btnModificar} ${btnReset}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -105,6 +116,28 @@ async function aprobarUsuario(id) {
     const token = localStorage.getItem("token");
     const res = await fetch(`${API_URL}/admin/usuarios/${id}/aprobar`, { method: "PUT", headers: { "Authorization": `Bearer ${token}` } });
     if (res.ok) cargarUsuarios(); 
+}
+
+async function darDeBaja(id) {
+    const usuario = usuariosGlobales.find(u => u.id === id);
+    const nombre = usuario ? `${usuario.apellido}, ${usuario.nombre}` : id;
+    if (!confirm(`¿Estás seguro de dar de baja (inhabilitar) al usuario "${nombre}"? Podrás darlo de alta más adelante.`)) return;
+    try {
+        const res = await fetch(`${API_URL}/admin/usuarios/${id}/baja`, { method: "PUT", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
+        if (res.ok) { const data = await res.json(); alert("✅ " + data.mensaje); cargarUsuarios(); }
+        else { const error = await res.json(); alert("❌ Error: " + (error.detail || "No se pudo dar de baja")); }
+    } catch (error) { alert("❌ Error de conexión al dar de baja."); }
+}
+
+async function darDeAlta(id) {
+    const usuario = usuariosGlobales.find(u => u.id === id);
+    const nombre = usuario ? `${usuario.apellido}, ${usuario.nombre}` : id;
+    if (!confirm(`¿Dar de alta (reactivar) al usuario "${nombre}"?`)) return;
+    try {
+        const res = await fetch(`${API_URL}/admin/usuarios/${id}/alta`, { method: "PUT", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
+        if (res.ok) { const data = await res.json(); alert("✅ " + data.mensaje); cargarUsuarios(); }
+        else { const error = await res.json(); alert("❌ Error: " + (error.detail || "No se pudo dar de alta")); }
+    } catch (error) { alert("❌ Error de conexión al dar de alta."); }
 }
 
 async function resetearClave(usuarioId) {
@@ -300,7 +333,11 @@ async function cargarAuditoria(pagina = 0) {
             const tr = document.createElement("tr");
             const fechaHora = new Date(log.fecha + "Z").toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const colorAccion = coloresAcciones[log.accion] || "#555";
-            const pcInfo = [log.ip_address, log.pc_usuario].filter(Boolean).join(" / ") || "-";
+            const pcParts = [];
+            if (log.pc_nombre && log.pc_nombre !== "No resuelto" && log.pc_nombre !== "LOCAL") pcParts.push(`<strong>${escapeHTML(log.pc_nombre)}</strong>`);
+            if (log.equipo_patrimonio) pcParts.push(`Nº ${escapeHTML(log.equipo_patrimonio)}`);
+            if (log.ip_address) pcParts.push(escapeHTML(log.ip_address));
+            const pcInfo = pcParts.length ? pcParts.join(" · ") : "-";
 
             tr.innerHTML = `
                 <td style="font-family: monospace; color: #666; font-size: 12px;">${escapeHTML(fechaHora)}</td>

@@ -89,6 +89,7 @@ def aprobar_usuario(user_id: int, request: Request, db: Session = Depends(databa
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     user.activo = True
+    user.aprobado = True
     db.commit()
 
     registrar_evento(
@@ -99,6 +100,45 @@ def aprobar_usuario(user_id: int, request: Request, db: Session = Depends(databa
         pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
     )
     return {"mensaje": f"Usuario {user.email} aprobado correctamente"}
+
+@router.put("/admin/usuarios/{user_id}/baja")
+def dar_de_baja_usuario(user_id: int, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not user.activo:
+        raise HTTPException(status_code=400, detail="El usuario ya se encuentra dado de baja")
+    user.activo = False
+    db.commit()
+
+    registrar_evento(
+        db, usuario_id=admin.get("id"), accion="BAJA_USUARIO",
+        detalle=f"Usuario dado de baja: {user.nombre} {user.apellido} ({user.email})",
+        ip_address=request.client.host,
+        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
+        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
+    )
+    return {"mensaje": f"Usuario {user.email} dado de baja correctamente"}
+
+@router.put("/admin/usuarios/{user_id}/alta")
+def dar_de_alta_usuario(user_id: int, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if user.activo:
+        raise HTTPException(status_code=400, detail="El usuario ya se encuentra activo")
+    user.activo = True
+    user.aprobado = True
+    db.commit()
+
+    registrar_evento(
+        db, usuario_id=admin.get("id"), accion="ALTA_USUARIO",
+        detalle=f"Usuario reactivado: {user.nombre} {user.apellido} ({user.email})",
+        ip_address=request.client.host,
+        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
+        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
+    )
+    return {"mensaje": f"Usuario {user.email} dado de alta correctamente"}
 
 @router.put("/admin/usuarios/{user_id}/editar")
 def editar_usuario_completo(user_id: int, datos: schemas.UserUpdate, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
@@ -142,6 +182,7 @@ def crear_usuario_manual(datos: schemas.UserUpdate, request: Request, db: Sessio
         sector_id=datos.sector_id,
         password_hash=utils.get_password_hash(_generar_clave_aleatoria()),
         activo=True,
+        aprobado=True,
         roles=",".join(datos.roles) if datos.roles else "Operador"
     )
     db.add(nuevo_usuario)

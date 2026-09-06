@@ -53,6 +53,7 @@ class UserResponse(BaseModel):
     reparticion: str
     puesto: Optional[str] = None
     activo: bool
+    aprobado: bool = False
     roles: str 
     sector_id: Optional[int] = None  # <-- Campo opcional agregado aquí
     sector: Optional[SectorResponse] = None # <-- Permite devolver el nombre del sector al frontend
