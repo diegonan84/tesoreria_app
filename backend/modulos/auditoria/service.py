@@ -1,5 +1,46 @@
 from sqlalchemy.orm import Session
 from backend.modulos.auditoria.models import RegistroAuditoria
+import socket
+from sqlalchemy import func
+
+
+def obtener_nombre_pc_cliente(client_ip: str):
+    """Resuelve el nombre del equipo (hostname) desde la IP del cliente por
+    reverse DNS. Devuelve solo el primer label (ej: 'PC-102').
+    Retorna None si no se pudo resolver."""
+    if not client_ip or client_ip in ("127.0.0.1", "::1"):
+        return "LOCAL"
+    try:
+        nombre = socket.gethostbyaddr(client_ip)[0]
+        return nombre.split(".")[0].upper()
+    except Exception:
+        return None
+
+
+def vincular_equipo_patrimonio(db: Session, pc_nombre: str, usuario_id: int):
+    """Cruza el hostname detectado con el registro de Informática
+    (patrimonio.nombre_de_equipo). Devuelve (bien, es_suya).
+      - bien: objeto Patrimonio que coincide o None
+      - es_suya: True si el equipo está asignado a ese usuario_id"""
+    if not pc_nombre:
+        return None, False
+
+    from backend.modulos.patrimonio.models import Patrimonio
+    # Normalizamos: solo primer label (quita dominio) y sin diferenciar mayúsculas
+    label = str(pc_nombre).split(".")[0].upper()
+    if not label:
+        return None, False
+    bien = (
+        db.query(Patrimonio)
+        .filter(
+            Patrimonio.activo == True,
+            func.lower(Patrimonio.nombre_de_equipo) == label.lower(),
+        )
+        .first()
+    )
+    if not bien:
+        return None, False
+    return bien, (bien.usuario_id == usuario_id)
 
 
 def registrar_evento(

@@ -67,7 +67,8 @@ def listar_auditoria(
             "reparticion": log.usuario.reparticion,
             "ip_address": log.ip_address,
             "pc_nombre": log.pc_nombre,
-            "pc_usuario": log.pc_usuario
+            "pc_usuario": log.pc_usuario,
+            "equipo_patrimonio": log.equipo_patrimonio
         })
 
     return {"total": total, "registros": resultado}

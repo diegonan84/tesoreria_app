@@ -15,6 +15,9 @@ class RegistroAuditoria(Base):
     ip_address = Column(String, nullable=True)
     pc_nombre = Column(String, nullable=True)
     pc_usuario = Column(String, nullable=True)
+    # Nº de inventario del equipo de Informática (patrimonio.nombre_de_equipo)
+    # detectado automáticamente por reverse DNS de la IP del cliente.
+    equipo_patrimonio = Column(String, nullable=True)
     
     fecha = Column(DateTime, default=datetime.utcnow)
 

@@ -19,6 +19,7 @@ from backend.modulos.auth.dependencies import (
     verificar_admin_actual,
 )
 from backend.modulos.auditoria.service import registrar_evento
+from backend.modulos.auditoria.service import obtener_nombre_pc_cliente, vincular_equipo_patrimonio
 
 router = APIRouter()
 
@@ -60,8 +61,7 @@ def register(user: schemas.UserCreate, request: Request, db: Session = Depends(d
         db, usuario_id=nuevo_usuario.id, accion="REGISTRO_USUARIO",
         detalle=f"Auto-registro: {user.nombre} {user.apellido} ({user.email})",
         ip_address=request.client.host,
-        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
-        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
+        pc_nombre=obtener_nombre_pc_cliente(request.client.host)
     )
 
     return {"mensaje": "Usuario registrado exitosamente"}
@@ -73,9 +73,8 @@ def login(req: schemas.UserLogin, request: Request, db: Session = Depends(databa
     # Si estás detrás de un reverse proxy (como Nginx), usá esto:
     # client_ip = request.headers.get("x-forwarded-for", request.client.host)
 
-    # 2. (Opcional) Si el frontend te envía el nombre de PC o usuario de red por headers o body:
-    pc_nombre = request.headers.get("X-PC-Nombre", "Desconocido")
-    pc_usuario = request.headers.get("X-PC-Usuario", "Desconocido")
+    # 2. Detectamos el nombre del equipo por reverse DNS (automático)
+    pc_nombre = obtener_nombre_pc_cliente(client_ip)
 
     user = db.query(models.User).filter(models.User.email == req.email).first()
     if not user or not utils.verify_password(req.password, user.password_hash):
@@ -86,15 +85,27 @@ def login(req: schemas.UserLogin, request: Request, db: Session = Depends(databa
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Tu usuario está pendiente de aprobación por un administrador."
         )    
-    
-    # Guardar en auditoría con los nuevos datos
+
+    # 3. Cruzamos el hostname con el registro de Informática
+    bien, es_suya = vincular_equipo_patrimonio(db, pc_nombre, user.id)
+
+    detalle = "Acceso correcto"
+    if pc_nombre:
+        if bien:
+            if es_suya:
+                detalle = f"Acceso correcto desde {pc_nombre} (Nº inv {bien.numero_inventario} · equipo asignado a su usuario)"
+            else:
+                detalle = f"Acceso correcto desde {pc_nombre} (Nº inv {bien.numero_inventario} · equipo de otro usuario o sin asignar)"
+        else:
+            detalle = f"Acceso correcto desde {pc_nombre} (equipo no registrado en Informática)"
+
     nuevo_log = models.RegistroAuditoria(
         usuario_id=user.id, 
         accion="INICIO_SESION", 
-        detalle="Acceso correcto",
+        detalle=detalle,
         ip_address=client_ip,
-        pc_nombre=pc_nombre,
-        pc_usuario=pc_usuario
+        pc_nombre=pc_nombre or "No resuelto",
+        equipo_patrimonio=bien.numero_inventario if bien else None
     )
     db.add(nuevo_log)
     db.commit()
@@ -200,8 +211,7 @@ def resetear_clave_admin(
         db, usuario_id=admin_auth.get("id"), accion="ADMIN_RESET_CLAVE",
         detalle=f"Admin reseteó la contraseña de {usuario.nombre} {usuario.apellido} (ID: {usuario_id})",
         ip_address=request.client.host,
-        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
-        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
+        pc_nombre=obtener_nombre_pc_cliente(request.client.host)
     )
     
     return {"mensaje": f"Clave reseteada para {usuario.nombre} {usuario.apellido}", "nueva_clave": nueva_clave}
