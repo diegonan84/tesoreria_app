@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import cast, Integer, asc, desc
+from sqlalchemy import cast, Integer, asc, desc, or_, and_
 from fastapi import HTTPException, status, UploadFile
 from datetime import datetime, timezone
 from .models import Patrimonio, PatrimonioHistorial
@@ -8,6 +8,7 @@ from .repository import PatrimonioRepository, PatrimonioHistorialRepository
 from . import models, schemas
 import pandas as pd
 import io
+import re
 import barcode
 from barcode.writer import ImageWriter
 import base64
@@ -21,14 +22,45 @@ class PatrimonioService:
         self.repo = PatrimonioRepository(db)
         self.historial_repo = PatrimonioHistorialRepository(db)
 
+    def _filtros_busqueda_avanzada(self, query, busqueda: str):
+        """Búsqueda unificada por Nº de inventario:
+        - '100-150'  → rango
+        - '100,105,110' o '100;105;110' o mezcla '100,130-140' → lista de números/rangos
+        - cualquier otro texto → contiene (como antes)
+        """
+        if not busqueda:
+            return query
+        tokens = [t.strip() for t in re.split(r"[;,]+", busqueda) if t.strip()]
+        if not tokens:
+            return query
+        col = cast(models.Patrimonio.numero_inventario, Integer)
+
+        if len(tokens) == 1:
+            m = re.fullmatch(r"(\d+)\s*-\s*(\d+)", tokens[0])
+            if m:
+                a, b = int(m.group(1)), int(m.group(2))
+                return query.filter(col >= min(a, b), col <= max(a, b))
+            return query.filter(models.Patrimonio.numero_inventario.ilike(f"%{tokens[0]}%"))
+
+        condiciones = []
+        for token in tokens:
+            m = re.fullmatch(r"(\d+)\s*-\s*(\d+)", token)
+            if m:
+                a, b = int(m.group(1)), int(m.group(2))
+                condiciones.append(and_(col >= min(a, b), col <= max(a, b)))
+            elif token.isdigit():
+                condiciones.append(col == int(token))
+            else:
+                condiciones.append(models.Patrimonio.numero_inventario.ilike(f"%{token}%"))
+        return query.filter(or_(*condiciones))
+
     def get_all(self, skip: int = 0, limit: int = 100, estado: str = None, busqueda: str = None, desde: str = None, hasta: str = None, tipo: str = None, anio: str = None, rubro: str = None, sort_by: str = "numero_inventario", orden: str = "asc"):
         query = self.db.query(models.Patrimonio)
         
         # Filtros (Estado, búsqueda y rangos)
         if estado:
             query = query.filter(models.Patrimonio.estado == estado)
-        if busqueda:
-            query = query.filter(models.Patrimonio.numero_inventario.ilike(f"%{busqueda}%"))
+        query = self._filtros_busqueda_avanzada(query, busqueda)
         if desde and desde.isdigit():
             query = query.filter(cast(models.Patrimonio.numero_inventario, Integer) >= int(desde))
         if hasta and hasta.isdigit():
@@ -74,8 +106,7 @@ class PatrimonioService:
         
         if estado:
             query = query.filter(models.Patrimonio.estado == estado)
-        if busqueda:
-            query = query.filter(models.Patrimonio.numero_inventario.ilike(f"%{busqueda}%"))
+        query = self._filtros_busqueda_avanzada(query, busqueda)
             
         if desde and desde.isdigit():
             query = query.filter(cast(models.Patrimonio.numero_inventario, Integer) >= int(desde))
@@ -408,8 +439,7 @@ class PatrimonioService:
     def exportar_excel(self, busqueda=None, desde=None, hasta=None, anio=None, rubro=None):
         query = self.db.query(models.Patrimonio).filter(models.Patrimonio.estado == "Autorizado")
         
-        if busqueda:
-            query = query.filter(models.Patrimonio.numero_inventario.ilike(f"%{busqueda}%"))
+        query = self._filtros_busqueda_avanzada(query, busqueda)
         if desde and desde.isdigit():
             query = query.filter(cast(models.Patrimonio.numero_inventario, Integer) >= int(desde))
         if hasta and hasta.isdigit():

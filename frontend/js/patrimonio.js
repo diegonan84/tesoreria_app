@@ -29,15 +29,11 @@ const PatrimonioModulo = (function() {
     const cargarTotalPaginas = async () => {
         try {
             const inputBusqueda = document.getElementById('input-busqueda');
-            const inputDesde = document.getElementById('input-desde');
-            const inputHasta = document.getElementById('input-hasta');
             const inputAnio = document.getElementById('input-anio');
             const inputRubro = document.getElementById('input-rubro');
             const badgeTotal = document.getElementById('badge-total-registros');
 
             const busquedaQuery = inputBusqueda && inputBusqueda.value.trim() ? `&busqueda=${encodeURIComponent(inputBusqueda.value.trim())}` : '';
-            const desdeQuery = inputDesde && inputDesde.value.trim() ? `&desde=${encodeURIComponent(inputDesde.value.trim())}` : '';
-            const hastaQuery = inputHasta && inputHasta.value.trim() ? `&hasta=${encodeURIComponent(inputHasta.value.trim())}` : '';
             const anioQuery = inputAnio && inputAnio.value.trim() ? `&anio=${encodeURIComponent(inputAnio.value.trim())}` : '';
             const rubroQuery = inputRubro && inputRubro.value.trim() ? `&rubro=${encodeURIComponent(inputRubro.value.trim())}` : '';
 
@@ -46,7 +42,7 @@ const PatrimonioModulo = (function() {
                 badgeTotal.innerText = 'Calculando...';
             }
 
-            const response = await fetch(`${API_BASE_URL}/total?estado=Autorizado${busquedaQuery}${desdeQuery}${hastaQuery}${anioQuery}${rubroQuery}`, {
+            const response = await fetch(`${API_BASE_URL}/total?estado=Autorizado${busquedaQuery}${anioQuery}${rubroQuery}`, {
                 method: 'GET',
                 headers: getFetchHeaders()
             });
@@ -117,20 +113,16 @@ const PatrimonioModulo = (function() {
 
             const skip = paginaActual * LIMITE_POR_PAGINA;
             const inputBusqueda = document.getElementById('input-busqueda');
-            const inputDesde = document.getElementById('input-desde');
-            const inputHasta = document.getElementById('input-hasta');
             const inputAnio = document.getElementById('input-anio');
             const inputRubro = document.getElementById('input-rubro');
 
             const busquedaQuery = inputBusqueda && inputBusqueda.value.trim() ? `&busqueda=${encodeURIComponent(inputBusqueda.value.trim())}` : '';
-            const desdeQuery = inputDesde && inputDesde.value.trim() ? `&desde=${encodeURIComponent(inputDesde.value.trim())}` : '';
-            const hastaQuery = inputHasta && inputHasta.value.trim() ? `&hasta=${encodeURIComponent(inputHasta.value.trim())}` : '';
             const anioQuery = inputAnio && inputAnio.value.trim() ? `&anio=${encodeURIComponent(inputAnio.value.trim())}` : '';
             const rubroQuery = inputRubro && inputRubro.value.trim() ? `&rubro=${encodeURIComponent(inputRubro.value.trim())}` : '';
 
             const ordenQuery = `&sort_by=${columnaOrden}&orden=${ordenAscendente ? 'asc' : 'desc'}`;
 
-            const response = await fetch(`${API_BASE_URL}?skip=${skip}&limit=${LIMITE_POR_PAGINA}&estado=Autorizado${busquedaQuery}${desdeQuery}${hastaQuery}${anioQuery}${rubroQuery}${ordenQuery}`, {
+            const response = await fetch(`${API_BASE_URL}?skip=${skip}&limit=${LIMITE_POR_PAGINA}&estado=Autorizado${busquedaQuery}${anioQuery}${rubroQuery}${ordenQuery}`, {
                 method: 'GET',
                 headers: getFetchHeaders()
             });
@@ -247,8 +239,6 @@ const PatrimonioModulo = (function() {
         const btnBuscar = document.getElementById('btn-buscar');
         const btnLimpiar = document.getElementById('btn-limpiar');
         const inputBusqueda = document.getElementById('input-busqueda');
-        const inputDesde = document.getElementById('input-desde');
-        const inputHasta = document.getElementById('input-hasta');
         const inputAnio = document.getElementById('input-anio'); 
         const inputRubro = document.getElementById('input-rubro');
 
@@ -256,16 +246,12 @@ const PatrimonioModulo = (function() {
             btnBuscar.addEventListener('click', () => { paginaActual = 0; cargarInventario(); });
             
             if(inputBusqueda) inputBusqueda.addEventListener('keypress', (e) => { if (e.key === 'Enter') { paginaActual = 0; cargarInventario(); } });
-            if(inputDesde) inputDesde.addEventListener('keypress', (e) => { if (e.key === 'Enter') { paginaActual = 0; cargarInventario(); } });
-            if(inputHasta) inputHasta.addEventListener('keypress', (e) => { if (e.key === 'Enter') { paginaActual = 0; cargarInventario(); } });
             
             if(inputAnio) inputAnio.addEventListener('change', () => { paginaActual = 0; cargarInventario(); }); 
             if(inputRubro) inputRubro.addEventListener('change', () => { paginaActual = 0; cargarInventario(); });
             
             btnLimpiar.addEventListener('click', () => { 
                 if (inputBusqueda) inputBusqueda.value = ''; 
-                if (inputDesde) inputDesde.value = ''; 
-                if (inputHasta) inputHasta.value = ''; 
                 if (inputAnio) inputAnio.value = ''; 
                 if (inputRubro) inputRubro.value = '';
                 paginaActual = 0; 
@@ -285,15 +271,11 @@ const PatrimonioModulo = (function() {
                 btnExportar.textContent = 'Generando...';
 
                 const inputBusqueda = document.getElementById('input-busqueda');
-                const inputDesde = document.getElementById('input-desde');
-                const inputHasta = document.getElementById('input-hasta');
                 const inputAnio = document.getElementById('input-anio');
                 const inputRubro = document.getElementById('input-rubro');
 
                 const params = new URLSearchParams();
                 if (inputBusqueda && inputBusqueda.value.trim()) params.set('busqueda', inputBusqueda.value.trim());
-                if (inputDesde && inputDesde.value.trim()) params.set('desde', inputDesde.value.trim());
-                if (inputHasta && inputHasta.value.trim()) params.set('hasta', inputHasta.value.trim());
                 if (inputAnio && inputAnio.value.trim()) params.set('anio', inputAnio.value.trim());
                 if (inputRubro && inputRubro.value.trim()) params.set('rubro', inputRubro.value.trim());
 
