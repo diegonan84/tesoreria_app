@@ -377,6 +377,12 @@ async def importar_excel_todos(
             raise HTTPException(status_code=400, detail=f"No se pudo reconocer el tipo del archivo {f.filename}. Verificá que sea uno de los 3 formatos de importación.")
         leidos.append((f.filename, tipo, contenido))
 
+    # ⚠️ ORDEN OBLIGADO para no alterar la importación:
+    # 1) Excel general (todos los estados) → 2) Año/Detalles (solo autorizados) → 3) Informática.
+    # Así la Informática (fuente autoritativa de asignaciones) se aplica al final.
+    orden_tipos = {"general": 0, "anio": 1, "informatica": 2}
+    leidos.sort(key=lambda x: orden_tipos[x[1]])
+
     service = PatrimonioService(db)
     resultados = []
     desactualizados = {}
