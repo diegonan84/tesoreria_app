@@ -949,6 +949,78 @@ class PatrimonioService:
         self.db.commit()
         return resultado
 
+    def importar_excel_anio(self, contenido: bytes, filename: str = ""):
+        """Importa Año / Detalles / Rubros desde un Excel (lógica del endpoint /importar-anio)."""
+        df_completo = pd.read_excel(io.BytesIO(contenido), header=None)
+
+        header_idx = 0
+        for idx, row in df_completo.iterrows():
+            row_str = " ".join(str(val).lower() for val in row.values if pd.notna(val))
+            if "inventario" in row_str and "ejercicio" in row_str:
+                header_idx = idx
+                break
+
+        df_completo.columns = df_completo.iloc[header_idx]
+        df = df_completo[header_idx + 1:].reset_index(drop=True)
+        df.columns = df.columns.astype(str).str.strip()
+
+        def obtener_nombre_columna(nombres_posibles, columnas_df):
+            for nombre in nombres_posibles:
+                if nombre in columnas_df:
+                    return nombre
+            return None
+
+        col_inventario = obtener_nombre_columna(["Nº Inventario", "N° Inventario", "Nro Inventario", "N  Inventario", "Inventario", "numero_inventario"], df.columns)
+        col_ejercicio = obtener_nombre_columna(["Ejercicio", "Año", "Anio", "anio"], df.columns)
+        col_descripcion = obtener_nombre_columna(["Descripción del Bien", "Descripcion del Bien", "Descripción", "descripcion"], df.columns)
+        col_rubro_num = obtener_nombre_columna(["Rubro Patrimonial Número", "Rubro Patrimonial Numero"], df.columns)
+        col_rubro_desc = obtener_nombre_columna(["Rubro Patrimonial Descripción", "Rubro Patrimonial Descripcion"], df.columns)
+
+        if not col_inventario:
+            raise HTTPException(status_code=400, detail=f"Excel {filename}: no tiene una columna reconocible para el Número de Inventario.")
+
+        actualizados = 0
+        omitidos = 0
+
+        for index, row in df.iterrows():
+            if pd.isna(row.get(col_inventario)):
+                continue
+            nro_inv = str(row[col_inventario]).replace(".0", "").strip()
+            if not nro_inv or nro_inv.lower() == "nan" or nro_inv == "none":
+                continue
+
+            ejercicio = str(row.get(col_ejercicio, "")).replace(".0", "").strip() if col_ejercicio and pd.notna(row.get(col_ejercicio)) else None
+            desc_detallada = str(row.get(col_descripcion, "")).strip() if col_descripcion and pd.notna(row.get(col_descripcion)) else None
+
+            val_num = row.get(col_rubro_num) if col_rubro_num else None
+            val_desc = row.get(col_rubro_desc) if col_rubro_desc else None
+            rubro_num = str(val_num).replace(".0", "").strip() if pd.notna(val_num) else ""
+            rubro_desc = str(val_desc).strip() if pd.notna(val_desc) else ""
+
+            bien = self.db.query(models.Patrimonio).filter(models.Patrimonio.numero_inventario == nro_inv).first()
+
+            if bien:
+                modificado = False
+                if ejercicio and ejercicio.lower() not in ["nan", "none", ""]:
+                    bien.anio = ejercicio
+                    modificado = True
+                if desc_detallada and desc_detallada.lower() not in ["nan", "none", ""]:
+                    bien.descripcion_detallada = desc_detallada
+                    modificado = True
+                if rubro_num and rubro_num.lower() not in ["nan", "none", ""]:
+                    bien.rubro_patrimonial_numero = rubro_num
+                    modificado = True
+                if rubro_desc and rubro_desc.lower() not in ["nan", "none", ""]:
+                    bien.rubro_patrimonial_descripcion = rubro_desc
+                    modificado = True
+                if modificado:
+                    actualizados += 1
+            else:
+                omitidos += 1
+
+        self.db.commit()
+        return {"mensaje": "Carga de Años, Detalles y Rubros finalizada.", "actualizados": actualizados, "omitidos": omitidos}
+
     async def importar_excel_informatica(self, file: UploadFile, usuario: str, ip: str, reactivar_desactualizados: bool = False):
         import pandas as pd
         import io

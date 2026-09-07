@@ -320,67 +320,68 @@ const PatrimonioModulo = (function() {
         });
     };
 
-    // --- LÓGICA: IMPORTACIÓN DE EXCEL ORIGINAL ---
+    // --- LÓGICA: IMPORTACIÓN UNIFICADA (1 a 3 EXCELS A LA VEZ) ---
     const inicializarImportacion = () => {
         const btnImportar = document.getElementById('btn-importar-excel');
         const inputFile = document.getElementById('input-file-excel');
 
         if (!btnImportar || !inputFile) return;
 
+        const formatearResultado = (r) => {
+            if (r.tipo === 'anio') {
+                return `• ${r.archivo} (Año/Detalles) → actualizados: ${r.resumen.actualizados}, omitidos: ${r.resumen.omitidos}`;
+            }
+            const rs = r.resumen || {};
+            const etiqueta = r.tipo === 'general' ? 'General' : 'Informática';
+            return `• ${r.archivo} (${etiqueta}) → nuevos: ${rs.nuevos_creados}, actualizados: ${rs.bienes_actualizados}, omitidos: ${rs.omitidos_o_sin_cambios}`;
+        };
+
         btnImportar.addEventListener('click', () => { inputFile.click(); });
 
         inputFile.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
 
             const formData = new FormData();
-            formData.append('file', file);
+            files.forEach(f => formData.append('files', f));
+
+            const intentarImportar = async (reactivar) => {
+                if (reactivar) formData.append('reactivar_desactualizados', '1');
+                else formData.delete('reactivar_desactualizados');
+
+                const res = await fetch(`${API_BASE_URL}/importar-todos`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${jwtToken}` },
+                    body: formData
+                });
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.detail || 'Error al importar los archivos');
+                }
+                return res.json();
+            };
 
             try {
                 btnImportar.disabled = true;
                 btnImportar.textContent = 'Importando...';
 
-                const response = await fetch(`${API_BASE_URL}/importar`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${jwtToken}` },
-                    body: formData
-                });
+                let result = await intentarImportar(false);
+                let lineas = result.resultados.map(formatearResultado).join('\n');
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Error al importar el archivo');
-                }
+                const desactualizados = result.resumen.usuarios_desactualizados || {};
+                const listaDes = Object.keys(desactualizados);
 
-                const result = await response.json();
-                let mensaje = `${result.mensaje}\nNuevos: ${result.resumen.nuevos_creados}\nActualizados: ${result.resumen.bienes_actualizados}\nTransferidos (Faltantes): ${result.resumen.bienes_transferidos}\nOmitidos: ${result.resumen.omitidos_o_sin_cambios}`;
-
-                const desactualizados = result.resumen.usuarios_desactualizados;
-                const listaDes = desactualizados ? Object.keys(desactualizados) : [];
-
-                if (result.resumen.usuarios_reactivados > 0) {
-                    mensaje += `\nReactivados: ${result.resumen.usuarios_reactivados}`;
-                } else if (listaDes.length > 0) {
+                if (listaDes.length > 0) {
                     const nombres = listaDes.join(', ');
-                    const reactivar = confirm(`ATENCIÓN: ${listaDes.length} usuario(s) listados en el Excel están dados de baja en el sistema:\n\n${nombres}\n\n¿Desea reactivarlos a TODOS y vincularlos?`);
-                    if (reactivar) {
-                        formData.append('reactivar_desactualizados', '1');
-                        const resReactiva = await fetch(`${API_BASE_URL}/importar`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${jwtToken}` },
-                            body: formData
-                        });
-                        if (resReactiva.ok) {
-                            const r2 = await resReactiva.json();
-                            alert(`✅ Se reactivaron ${r2.resumen.usuarios_reactivados} usuario(s).\n${r2.mensaje}`);
-                        } else {
-                            const err2 = await resReactiva.json();
-                            throw new Error(err2.detail || 'Error al reactivar usuarios');
-                        }
+                    if (confirm(`ATENCIÓN: ${listaDes.length} usuario(s) listados en los Excel están dados de baja en el sistema:\n\n${nombres}\n\n¿Desea reactivarlos a TODOS y vincularlos?`)) {
+                        result = await intentarImportar(true);
+                        lineas = result.resultados.map(formatearResultado).join('\n');
                     }
                 }
 
-                alert(mensaje);
-                
+                const reactivados = result.resumen.usuarios_reactivados || 0;
+                alert(`${result.mensaje}\n\n${lineas}${reactivados ? `\n\n✅ Reactivados: ${reactivados}` : ''}`);
+
                 paginaActual = 0;
                 cargarInventario();
 
@@ -389,130 +390,8 @@ const PatrimonioModulo = (function() {
                 alert(`Hubo un error en la importación: ${error.message}`);
             } finally {
                 btnImportar.disabled = false;
-                btnImportar.textContent = 'Importar Excel Todos'; 
-                inputFile.value = ''; 
-            }
-        });
-    };
-
-    // --- LÓGICA: IMPORTACIÓN AÑO / DETALLES ---
-    const inicializarImportacionAnio = () => {
-        const btnImportarAnio = document.getElementById('btn-importar-anio');
-        const inputFileAnio = document.getElementById('input-file-anio');
-
-        if (!btnImportarAnio || !inputFileAnio) return;
-
-        btnImportarAnio.addEventListener('click', () => { inputFileAnio.click(); });
-
-        inputFileAnio.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                btnImportarAnio.disabled = true;
-                btnImportarAnio.textContent = 'Procesando...';
-
-                const response = await fetch(`${API_BASE_URL}/importar-anio`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${jwtToken}` },
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Error al procesar el archivo');
-                }
-
-                const result = await response.json();
-                alert(`${result.mensaje}\nBienes actualizados: ${result.actualizados}\nFilas omitidas o no encontradas: ${result.omitidos}`);
-                
-                cargarInventario();
-
-            } catch (error) {
-                console.error('Error:', error);
-                alert(`Hubo un error en la actualización: ${error.message}`);
-            } finally {
-                btnImportarAnio.disabled = false;
-                btnImportarAnio.textContent = 'Importar Excel Año/Detalles';
-                inputFileAnio.value = ''; 
-            }
-        });
-    };
-
-    // --- ✨ LÓGICA: IMPORTACIÓN EXCEL INFORMÁTICA (Múltiples hojas) ✨ ---
-    const inicializarImportacionInformatica = () => {
-        const btnImportarInfo = document.getElementById('btn-importar-informatica');
-        const inputFileInfo = document.getElementById('input-file-informatica');
-
-        if (!btnImportarInfo || !inputFileInfo) return;
-
-        btnImportarInfo.addEventListener('click', () => { inputFileInfo.click(); });
-
-        inputFileInfo.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                btnImportarInfo.disabled = true;
-                btnImportarInfo.textContent = 'Procesando...';
-
-                const response = await fetch(`${API_BASE_URL}/importar-informatica`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${jwtToken}` },
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Error al procesar el archivo informático');
-                }
-
-                const result = await response.json();
-                let mensaje = `${result.mensaje}\nNuevos: ${result.resumen.nuevos_creados}\nActualizados: ${result.resumen.bienes_actualizados}\nOmitidos/Vacíos: ${result.resumen.omitidos_o_sin_cambios}`;
-
-                const desactualizados = result.resumen.usuarios_desactualizados;
-                const listaDes = desactualizados ? Object.keys(desactualizados) : [];
-
-                if (result.resumen.usuarios_reactivados > 0) {
-                    mensaje += `\nReactivados: ${result.resumen.usuarios_reactivados}`;
-                } else if (listaDes.length > 0) {
-                    const nombres = listaDes.join(', ');
-                    const reactivar = confirm(`ATENCIÓN: ${result.resumen.sin_vinculacion} registro(s) no se vincularon porque ${listaDes.length} usuario(s) están dados de baja en el sistema:\n\n${nombres}\n\n¿Desea reactivarlos a TODOS y vincularlos?`);
-                    if (reactivar) {
-                        formData.append('reactivar_desactualizados', '1');
-                        const resReactiva = await fetch(`${API_BASE_URL}/importar-informatica`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${jwtToken}` },
-                            body: formData
-                        });
-                        if (resReactiva.ok) {
-                            const r2 = await resReactiva.json();
-                            alert(`✅ Se reactivaron ${r2.resumen.usuarios_reactivados} usuario(s).\n${r2.mensaje}`);
-                        } else {
-                            const err2 = await resReactiva.json();
-                            throw new Error(err2.detail || 'Error al reactivar usuarios');
-                        }
-                    }
-                }
-
-                alert(mensaje);
-                
-                paginaActual = 0;
-                cargarInventario();
-
-            } catch (error) {
-                console.error('Error:', error);
-                alert(`Hubo un error en la actualización: ${error.message}`);
-            } finally {
-                btnImportarInfo.disabled = false;
-                btnImportarInfo.textContent = 'Importar Informática (DGTES)';
-                inputFileInfo.value = ''; 
+                btnImportar.textContent = 'Importar Excel (1 a 3)';
+                inputFile.value = '';
             }
         });
     };
@@ -910,9 +789,7 @@ const PatrimonioModulo = (function() {
                 cargarRubrosDropdown();
                 inicializarPaginacion(); 
                 cargarInventario(); 
-                inicializarImportacion();
-                inicializarImportacionAnio(); 
-                inicializarImportacionInformatica(); // ✨ NUEVO: Inicializar el botón de Informática
+                inicializarImportacion(); // Importar unificado (1 a 3 Excels a la vez)
                 inicializarExportacion(); 
                 inicializarBuscador(); 
                 inicializarImpresion(); 

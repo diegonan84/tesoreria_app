@@ -29,6 +29,40 @@ def _obtener_usuario_id(db, email):
     user = db.query(User).filter(User.email == email).first()
     return user.id if user else None
 
+class _ArchivoMemoria:
+    """Envuelve un archivo ya leído en memoria para pasarlo a los servicios (misma interfaz que UploadFile)."""
+    def __init__(self, filename, content):
+        self.filename = filename
+        self._content = content
+    async def read(self):
+        return self._content
+
+def _detectar_tipo_excel(contenido: bytes):
+    """Detecta el tipo de Excel por sus encabezados:
+    'informatica' | 'anio' | 'general' | None"""
+    try:
+        xls = pd.ExcelFile(io.BytesIO(contenido))
+    except Exception:
+        return None
+
+    for sheet in xls.sheet_names:
+        try:
+            df0 = pd.read_excel(xls, sheet_name=sheet, header=None)
+        except Exception:
+            continue
+        for _, row in df0.iterrows():
+            celdas = [str(v).strip() for v in row.values if pd.notna(v)]
+            texto = " ".join(c.lower() for c in celdas).lower()
+            if not texto:
+                continue
+            if any(k in texto for k in ["nombre de equipo", "usuario/destino", "serie monitor", "caract pc"]):
+                return "informatica"
+            if "inventario" in texto and "ejercicio" in texto:
+                return "anio"
+            if "inventario" in texto and "estado" in texto:
+                return "general"
+    return None
+
 router = APIRouter(
     prefix="/patrimonio",
     tags=["Patrimonio"],
@@ -317,6 +351,81 @@ async def importar_excel(
         )
     return resultado
 
+@router.post("/importar-todos")
+async def importar_excel_todos(
+    files: List[UploadFile] = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    usuario_actual: str = Depends(JWT_DEPENDENCY),
+    ip: str = Depends(get_client_ip),
+    reactivar_desactualizados: bool = Form(False)
+):
+    """Recibe varios Excel a la vez, detecta cada tipo por sus encabezados
+    (general / año-detalles / informática) y los procesa en orden."""
+    if not files:
+        raise HTTPException(status_code=400, detail="No se recibió ningún archivo.")
+
+    for f in files:
+        if not f.filename.endswith(('.xls', '.xlsx')):
+            raise HTTPException(status_code=400, detail=f"El archivo {f.filename} no es formato Excel (.xls o .xlsx)")
+
+    leidos = []
+    for f in files:
+        contenido = await f.read()
+        tipo = _detectar_tipo_excel(contenido)
+        if not tipo:
+            raise HTTPException(status_code=400, detail=f"No se pudo reconocer el tipo del archivo {f.filename}. Verificá que sea uno de los 3 formatos de importación.")
+        leidos.append((f.filename, tipo, contenido))
+
+    service = PatrimonioService(db)
+    resultados = []
+    desactualizados = {}
+    reactivados = 0
+
+    try:
+        for filename, tipo, contenido in leidos:
+            archivo = _ArchivoMemoria(filename, contenido)
+            if tipo == "general":
+                r = await service.importar_excel(archivo, usuario=usuario_actual, ip=ip, reactivar_desactualizados=reactivar_desactualizados)
+                des = r.get("resumen", {}).get("usuarios_desactualizados") or {}
+                for k, v in des.items():
+                    desactualizados[k] = desactualizados.get(k, 0) + v
+                reactivados += r.get("resumen", {}).get("usuarios_reactivados") or 0
+                resultados.append({"archivo": filename, "tipo": tipo, "mensaje": r.get("mensaje", ""), "resumen": r.get("resumen", {})})
+            elif tipo == "informatica":
+                r = await service.importar_excel_informatica(archivo, usuario_actual, ip, reactivar_desactualizados=reactivar_desactualizados)
+                des = r.get("resumen", {}).get("usuarios_desactualizados") or {}
+                for k, v in des.items():
+                    desactualizados[k] = desactualizados.get(k, 0) + v
+                reactivados += r.get("resumen", {}).get("usuarios_reactivados") or 0
+                resultados.append({"archivo": filename, "tipo": tipo, "mensaje": r.get("mensaje", ""), "resumen": r.get("resumen", {})})
+            else:  # anio
+                r = service.importar_excel_anio(contenido, filename)
+                resultados.append({"archivo": filename, "tipo": tipo, "mensaje": r.get("mensaje", ""), "resumen": r})
+    except HTTPException as he:
+        db.rollback()
+        raise he
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error procesando la importación múltiple: {str(e)}")
+
+    uid = _obtener_usuario_id(db, usuario_actual)
+    if uid:
+        registrar_evento(
+            db, usuario_id=uid, accion="IMPORTAR_EXCEL_MULTIPLE",
+            detalle=f"Importación múltiple ({len(leidos)} archivos): {', '.join(f for f, _, _ in leidos)}",
+            ip_address=request.client.host if request else ip
+        )
+    return {
+        "mensaje": "Importación múltiple finalizada",
+        "resultados": resultados,
+        "resumen": {
+            "total_archivos": len(leidos),
+            "usuarios_reactivados": reactivados,
+            "usuarios_desactualizados": desactualizados
+        }
+    }
+
 @router.post("/importar-anio")
 async def importar_excel_anio_detalle(
     file: UploadFile = File(...), 
@@ -328,87 +437,7 @@ async def importar_excel_anio_detalle(
 
     try:
         contents = await file.read()
-        df_completo = pd.read_excel(io.BytesIO(contents), header=None)
-        
-        # 1. Buscamos la fila de encabezados dinámicamente
-        header_idx = 0
-        for idx, row in df_completo.iterrows():
-            row_str = " ".join(str(val).lower() for val in row.values if pd.notna(val))
-            # Buscamos combinaciones probables de la palabra inventario y ejercicio
-            if "inventario" in row_str and "ejercicio" in row_str:
-                header_idx = idx
-                break
-        
-        df_completo.columns = df_completo.iloc[header_idx]
-        df = df_completo[header_idx + 1:].reset_index(drop=True)
-        df.columns = df.columns.astype(str).str.strip()
-        
-        # 2. Función auxiliar para encontrar la columna de inventario sin importar cómo se llame exactamente
-        def obtener_nombre_columna(nombres_posibles, columnas_df):
-            for nombre in nombres_posibles:
-                if nombre in columnas_df:
-                    return nombre
-            return None
-
-        # 3. Detectamos las columnas reales del Excel
-        col_inventario = obtener_nombre_columna(["Nº Inventario", "N° Inventario", "Nro Inventario", "N  Inventario", "Inventario", "numero_inventario"], df.columns)
-        col_ejercicio = obtener_nombre_columna(["Ejercicio", "Año", "Anio", "anio"], df.columns)
-        col_descripcion = obtener_nombre_columna(["Descripción del Bien", "Descripcion del Bien", "Descripción", "descripcion"], df.columns)
-        
-        col_rubro_num = obtener_nombre_columna(["Rubro Patrimonial Número", "Rubro Patrimonial Numero"], df.columns)
-        col_rubro_desc = obtener_nombre_columna(["Rubro Patrimonial Descripción", "Rubro Patrimonial Descripcion"], df.columns)
-
-        if not col_inventario:
-            raise HTTPException(status_code=400, detail="El Excel no tiene una columna reconocible para el Número de Inventario.")
-        
-        actualizados = 0
-        omitidos = 0
-        
-        for index, row in df.iterrows():
-            if pd.isna(row.get(col_inventario)):
-                continue
-                
-            nro_inv = str(row[col_inventario]).replace(".0", "").strip()
-            
-            if not nro_inv or nro_inv.lower() == "nan" or nro_inv == "none":
-                continue
-            
-            # Obtenemos los valores de las columnas encontradas (si existen)
-            ejercicio = str(row.get(col_ejercicio, "")).replace(".0", "").strip() if col_ejercicio and pd.notna(row.get(col_ejercicio)) else None
-            desc_detallada = str(row.get(col_descripcion, "")).strip() if col_descripcion and pd.notna(row.get(col_descripcion)) else None
-            
-            val_num = row.get(col_rubro_num) if col_rubro_num else None
-            val_desc = row.get(col_rubro_desc) if col_rubro_desc else None
-            
-            rubro_num = str(val_num).replace(".0", "").strip() if pd.notna(val_num) else ""
-            rubro_desc = str(val_desc).strip() if pd.notna(val_desc) else ""
-            
-            bien = db.query(models.Patrimonio).filter(models.Patrimonio.numero_inventario == nro_inv).first()
-            
-            if bien:
-                modificado = False
-                if ejercicio and ejercicio.lower() not in ["nan", "none", ""]:
-                    bien.anio = ejercicio
-                    modificado = True
-                if desc_detallada and desc_detallada.lower() not in ["nan", "none", ""]:
-                    bien.descripcion_detallada = desc_detallada
-                    modificado = True
-                    
-                if rubro_num and rubro_num.lower() not in ["nan", "none", ""]:
-                    bien.rubro_patrimonial_numero = rubro_num
-                    modificado = True
-                if rubro_desc and rubro_desc.lower() not in ["nan", "none", ""]:
-                    bien.rubro_patrimonial_descripcion = rubro_desc
-                    modificado = True
-                        
-                if modificado:
-                    actualizados += 1
-            else:
-                omitidos += 1
-                
-        db.commit()
-        return {"mensaje": "Carga de Años, Detalles y Rubros finalizada.", "actualizados": actualizados, "omitidos": omitidos}
-        
+        return PatrimonioService(db).importar_excel_anio(contents, file.filename)
     except HTTPException as he:
         raise he
     except Exception as e:
