@@ -26,6 +26,14 @@ const PatrimonioModulo = (function() {
     };
 
     // --- LÓGICA: CALCULAR TOTAL DE PÁGINAS Y MOSTRAR BADGE ---
+    // En la vista "Inventario Total" existe #input-estado (los demás valores salen del select);
+    // en la vista clásica no existe → se mantiene el filtro fijo de Autorizado.
+    const estadoFiltroActual = () => {
+        const sel = document.getElementById('input-estado');
+        if (!sel) return 'Autorizado';
+        return sel.value.trim();
+    };
+
     const cargarTotalPaginas = async () => {
         try {
             const inputBusqueda = document.getElementById('input-busqueda');
@@ -36,13 +44,15 @@ const PatrimonioModulo = (function() {
             const busquedaQuery = inputBusqueda && inputBusqueda.value.trim() ? `&busqueda=${encodeURIComponent(inputBusqueda.value.trim())}` : '';
             const anioQuery = inputAnio && inputAnio.value.trim() ? `&anio=${encodeURIComponent(inputAnio.value.trim())}` : '';
             const rubroQuery = inputRubro && inputRubro.value.trim() ? `&rubro=${encodeURIComponent(inputRubro.value.trim())}` : '';
+            const estadoQ = estadoFiltroActual();
+            const estadoQuery = estadoQ ? `&estado=${encodeURIComponent(estadoQ)}` : '';
 
             if (badgeTotal) {
                 badgeTotal.style.display = 'inline-block';
                 badgeTotal.innerText = 'Calculando...';
             }
 
-            const response = await fetch(`${API_BASE_URL}/total?estado=Autorizado${busquedaQuery}${anioQuery}${rubroQuery}`, {
+            const response = await fetch(`${API_BASE_URL}/total?${estadoQuery.replace(/^&/, '')}${busquedaQuery}${anioQuery}${rubroQuery}`, {
                 method: 'GET',
                 headers: getFetchHeaders()
             });
@@ -104,7 +114,8 @@ const PatrimonioModulo = (function() {
             const tbody = document.getElementById('tabla-patrimonio-body');
             if (!tbody) return; 
 
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Cargando inventario...</td></tr>';
+            const esTotal = !!document.getElementById('th-estado');
+            tbody.innerHTML = `<tr><td colspan="${esTotal ? 10 : 9}" style="text-align: center;">Cargando inventario...</td></tr>`;
 
             await cargarTotalPaginas();
             
@@ -122,7 +133,10 @@ const PatrimonioModulo = (function() {
 
             const ordenQuery = `&sort_by=${columnaOrden}&orden=${ordenAscendente ? 'asc' : 'desc'}`;
 
-            const response = await fetch(`${API_BASE_URL}?skip=${skip}&limit=${LIMITE_POR_PAGINA}&estado=Autorizado${busquedaQuery}${anioQuery}${rubroQuery}${ordenQuery}`, {
+            const estadoQ = estadoFiltroActual();
+            const estadoQuery = estadoQ ? `&estado=${encodeURIComponent(estadoQ)}` : '';
+
+            const response = await fetch(`${API_BASE_URL}?skip=${skip}&limit=${LIMITE_POR_PAGINA}${estadoQuery}${busquedaQuery}${anioQuery}${rubroQuery}${ordenQuery}`, {
                 method: 'GET',
                 headers: getFetchHeaders()
             });
@@ -144,10 +158,21 @@ const PatrimonioModulo = (function() {
         const tbody = document.getElementById('tabla-patrimonio-body');
         tbody.innerHTML = '';
 
+        const mostrarEstado = !!document.getElementById('th-estado');
+        const nroColumnas = mostrarEstado ? 10 : 9;
+
         if (bienes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No se encontraron bienes.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="${nroColumnas}" style="text-align: center;">No se encontraron bienes.</td></tr>`;
             return;
         }
+
+        const colorEstado = (estado) => {
+            const e = (estado || '').toLowerCase();
+            if (e === 'autorizado') return '#9ee4d3; color:#0b3a47';
+            if (e === 'baja') return '#f5b7b1; color:#7b241c';
+            if (e === 'transferido' || e === 'transferida') return '#ffe49e; color:#6b4f00';
+            return '#e0e6e8; color:#333';
+        };
 
         bienes.forEach(bien => {
             const formatearMonto = (monto) => {
@@ -156,6 +181,9 @@ const PatrimonioModulo = (function() {
             };
 
             const tr = document.createElement('tr');
+            const celdaEstado = mostrarEstado
+                ? `<td style="text-align: center;"><span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:11px; font-weight:bold; background:${colorEstado(bien.estado).split('; color')[0]}; color:${colorEstado(bien.estado).split('; color')[1]}">${escapeHTML(bien.estado || 'Sin estado')}</span></td>`
+                : '';
             tr.innerHTML = `
                 <td style="text-align: center;">
                     <input type="checkbox" class="chk-imprimir" value="${bien.numero_inventario}" style="cursor: pointer; width: 16px; height: 16px;">
@@ -164,7 +192,7 @@ const PatrimonioModulo = (function() {
                 <td>${escapeHTML(bien.rubro_patrimonial_numero) || '-'}</td>
                 <td>${escapeHTML(bien.rubro_patrimonial_descripcion) || '-'}</td>
                 <td>${escapeHTML(bien.descripcion_bien || bien.descripcion_item || '-')}</td>
-                
+                ${celdaEstado}
                 <td style="text-align: center; font-weight: bold;">${escapeHTML(bien.anio || '-')}</td>
                 
                 <td>${formatearMonto(bien.monto_original)}</td>
@@ -234,6 +262,27 @@ const PatrimonioModulo = (function() {
         }
     };
 
+    const cargarEstadosDropdown = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/estados`, {
+                method: 'GET',
+                headers: getFetchHeaders()
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const selectEstado = document.getElementById('input-estado');
+                if (selectEstado && data.estados) {
+                    data.estados.forEach(estado => {
+                        selectEstado.innerHTML += `<option value="${escapeHTML(estado)}">${escapeHTML(estado)}</option>`;
+                    });
+                    selectEstado.innerHTML += `<option value="SIN_ESTADO">Sin estado</option>`;
+                }
+            }
+        } catch (error) {
+            console.error("Error cargando la lista de estados:", error);
+        }
+    };
+
     // --- LÓGICA: BUSCADOR ---
     const inicializarBuscador = () => {
         const btnBuscar = document.getElementById('btn-buscar');
@@ -241,6 +290,7 @@ const PatrimonioModulo = (function() {
         const inputBusqueda = document.getElementById('input-busqueda');
         const inputAnio = document.getElementById('input-anio'); 
         const inputRubro = document.getElementById('input-rubro');
+        const inputEstado = document.getElementById('input-estado');
 
         if (btnBuscar && btnLimpiar) {
             btnBuscar.addEventListener('click', () => { paginaActual = 0; cargarInventario(); });
@@ -249,11 +299,13 @@ const PatrimonioModulo = (function() {
             
             if(inputAnio) inputAnio.addEventListener('change', () => { paginaActual = 0; cargarInventario(); }); 
             if(inputRubro) inputRubro.addEventListener('change', () => { paginaActual = 0; cargarInventario(); });
+            if(inputEstado) inputEstado.addEventListener('change', () => { paginaActual = 0; cargarInventario(); });
             
             btnLimpiar.addEventListener('click', () => { 
                 if (inputBusqueda) inputBusqueda.value = ''; 
                 if (inputAnio) inputAnio.value = ''; 
                 if (inputRubro) inputRubro.value = '';
+                if (inputEstado) inputEstado.value = '';
                 paginaActual = 0; 
                 cargarInventario(); 
             });
@@ -787,6 +839,7 @@ const PatrimonioModulo = (function() {
             if (document.getElementById('tabla-patrimonio-body')) {
                 cargarAniosDropdown();
                 cargarRubrosDropdown();
+                cargarEstadosDropdown(); // Solo existe en "Inventario Total"
                 inicializarPaginacion(); 
                 cargarInventario(); 
                 inicializarImportacion(); // Importar unificado (1 a 3 Excels a la vez)

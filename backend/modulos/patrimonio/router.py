@@ -243,6 +243,12 @@ def actualizar_destino(
     return {"id": destino.id, "nombre": destino.nombre, "reparticion": destino.reparticion or ""}
 
 
+@router.get("/estados")
+def obtener_estados(db: Session = Depends(get_db), usuario_actual: str = Depends(JWT_DEPENDENCY)):
+    service = PatrimonioService(db)
+    return {"estados": service.get_estados()}
+
+
 @router.get("/{numero}", response_model=schemas.PatrimonioResponse)
 def obtener_patrimonio(
     numero: str, 

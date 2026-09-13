@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import cast, Integer, asc, desc, or_, and_
+from sqlalchemy import cast, Integer, asc, desc, or_, and_, func
 from fastapi import HTTPException, status, UploadFile
 from datetime import datetime, timezone
 from .models import Patrimonio, PatrimonioHistorial
@@ -202,12 +202,29 @@ class PatrimonioService:
                 condiciones.append(models.Patrimonio.numero_inventario.ilike(f"%{token}%"))
         return query.filter(or_(*condiciones))
 
+    def _columna_orden_numero_inventario(self):
+        """Columna numérica ordenable del Nº inventario, tolerante a valores no numéricos.
+        Hay filas con texto sucio (ej: '14752466 fue transferido a gisella') que harían
+        explotar el CAST(... AS INTEGER) en PostgreSQL."""
+        if self.db.bind and self.db.bind.dialect.name == "postgresql":
+            return func.coalesce(
+                func.nullif(
+                    func.regexp_replace(models.Patrimonio.numero_inventario, '[^0-9]', '', 'g'),
+                    ''
+                ).cast(Integer),
+                0
+            )
+        return cast(models.Patrimonio.numero_inventario, Integer)
+
     def get_all(self, skip: int = 0, limit: int = 100, estado: str = None, busqueda: str = None, desde: str = None, hasta: str = None, tipo: str = None, anio: str = None, rubro: str = None, sort_by: str = "numero_inventario", orden: str = "asc"):
         query = self.db.query(models.Patrimonio)
         
         # Filtros (Estado, búsqueda y rangos)
         if estado:
-            query = query.filter(models.Patrimonio.estado == estado)
+            if estado == "SIN_ESTADO":
+                query = query.filter(or_(models.Patrimonio.estado.is_(None), models.Patrimonio.estado == ""))
+            else:
+                query = query.filter(models.Patrimonio.estado == estado)
         query = self._filtros_busqueda_avanzada(query, busqueda)
         if desde and desde.isdigit():
             query = query.filter(cast(models.Patrimonio.numero_inventario, Integer) >= int(desde))
@@ -240,7 +257,7 @@ class PatrimonioService:
         elif sort_by == "anio":
             columna = models.Patrimonio.anio
         else:
-            columna = cast(models.Patrimonio.numero_inventario, Integer)
+            columna = self._columna_orden_numero_inventario()
             
         if orden == "desc":
             query = query.order_by(desc(columna))
@@ -253,7 +270,10 @@ class PatrimonioService:
         query = self.db.query(models.Patrimonio)
         
         if estado:
-            query = query.filter(models.Patrimonio.estado == estado)
+            if estado == "SIN_ESTADO":
+                query = query.filter(or_(models.Patrimonio.estado.is_(None), models.Patrimonio.estado == ""))
+            else:
+                query = query.filter(models.Patrimonio.estado == estado)
         query = self._filtros_busqueda_avanzada(query, busqueda)
             
         if desde and desde.isdigit():
@@ -762,6 +782,14 @@ class PatrimonioService:
         
         # Extraemos el primer elemento de la tupla devuelta por SQLAlchemy
         return [a[0] for a in anios if a[0]]
+
+    def get_estados(self):
+        """Lista los distintos valores de estado presentes en la tabla (para el filtro de Inventario Total)."""
+        filas = self.db.query(models.Patrimonio.estado).filter(
+            models.Patrimonio.estado.isnot(None),
+            models.Patrimonio.estado != ''
+        ).distinct().order_by(models.Patrimonio.estado).all()
+        return [f[0] for f in filas if f[0]]
 
     def generar_pdf_salida(self, data: schemas.NotaSalidaRequest):
         from reportlab.lib.pagesizes import A4

@@ -105,8 +105,11 @@ def serve_patrimonio_nuevo(): return FileResponse("frontend/vistas/patrimonio/pa
 @app.get("/patrimonio-editar")
 def serve_patrimonio_editar(): return FileResponse("frontend/vistas/patrimonio/patrimonio_editar.html")
 
-@app.get("/patrimonio-conceptos")
-def serve_patrimonio_conceptos(): return FileResponse("frontend/vistas/patrimonio_conceptos.html")
+@app.get("/patrimonio-inventario-total")
+def serve_patrimonio_inventario_total(): return FileResponse("frontend/vistas/patrimonio/patrimonio_inventario_total.html")
+
+@app.get("/chat")
+def serve_chat(): return FileResponse("frontend/vistas/chat/chat.html")
 
 @app.get("/patrimonio-historial-vista")
 def serve_patrimonio_historial(): return FileResponse("frontend/vistas/patrimonio/patrimonio_historial.html")

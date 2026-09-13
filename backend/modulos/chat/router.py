@@ -160,6 +160,86 @@ def eliminar_contacto(contacto_id: int, request: Request, db: Session = Depends(
     return {"mensaje": "Contacto eliminado"}
 
 
+# --- 5b. LISTAR MIS CONVERSACIONES (cualquiera con quien haya hablado) ---
+@router.get("/chat/conversaciones")
+def obtener_conversaciones(db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+    mi_id = usuario.get("id")
+
+    mensajes = db.query(models.MensajeChat).filter(
+        or_(
+            models.MensajeChat.remitente_id == mi_id,
+            models.MensajeChat.destinatario_id == mi_id
+        )
+    ).order_by(models.MensajeChat.fecha_envio.desc()).all()
+
+    ultimo_por_contacto = {}
+    no_leidos = {}
+    for m in mensajes:
+        otro = m.destinatario_id if m.remitente_id == mi_id else m.remitente_id
+        if otro not in ultimo_por_contacto:
+            ultimo_por_contacto[otro] = m
+        if m.destinatario_id == mi_id and not m.leido:
+            no_leidos[otro] = no_leidos.get(otro, 0) + 1
+
+    contactos_ids = set(ultimo_por_contacto.keys())
+
+    users_map = {}
+    if contactos_ids:
+        for u in db.query(models.User).filter(models.User.id.in_(contactos_ids)).all():
+            users_map[u.id] = u
+
+    contactos_aceptados = set()
+    if contactos_ids:
+        relaciones = db.query(models.ContactoChat).filter(
+            or_(models.ContactoChat.solicitante_id == mi_id, models.ContactoChat.receptor_id == mi_id),
+            models.ContactoChat.estado == "ACEPTADO"
+        ).all()
+        for r in relaciones:
+            contactos_aceptados.add(r.solicitante_id if r.receptor_id == mi_id else r.receptor_id)
+
+    conversaciones = []
+    for otro_id, m in ultimo_por_contacto.items():
+        u = users_map.get(otro_id)
+        conversaciones.append({
+            "contacto_id": otro_id,
+            "nombre": f"{u.nombre} {u.apellido}" if u else "Usuario eliminado",
+            "reparticion": u.reparticion if u else "",
+            "online": otro_id in manager_chat.conexiones_activas,
+            "es_contacto": otro_id in contactos_aceptados,
+            "ultimo_mensaje": m.contenido,
+            "fecha_ultimo": m.fecha_envio.isoformat() if m.fecha_envio else None,
+            "fue_mio": m.remitente_id == mi_id,
+            "no_leidos": no_leidos.get(otro_id, 0)
+        })
+
+    conversaciones.sort(key=lambda c: c.get("fecha_ultimo") or "", reverse=True)
+    return {"conversaciones": conversaciones}
+
+
+# --- 5c. HISTORIAL COMPLETO DE UNA CONVERSACIÓN ---
+@router.get("/chat/historial/{contacto_id}")
+def obtener_historial(contacto_id: int, db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+    mi_id = usuario.get("id")
+    mensajes = db.query(models.MensajeChat).filter(
+        or_(
+            and_(models.MensajeChat.remitente_id == mi_id, models.MensajeChat.destinatario_id == contacto_id),
+            and_(models.MensajeChat.remitente_id == contacto_id, models.MensajeChat.destinatario_id == mi_id)
+        )
+    ).order_by(models.MensajeChat.fecha_envio.asc()).all()
+
+    for m in mensajes:
+        if m.destinatario_id == mi_id and not m.leido:
+            m.leido = True
+    db.commit()
+
+    return [{
+        "remitente_id": m.remitente_id,
+        "contenido": m.contenido,
+        "fecha": m.fecha_envio.isoformat() if m.fecha_envio else None,
+        "es_mio": m.remitente_id == mi_id
+    } for m in mensajes]
+
+
 # --- 6. WEBSOCKET (Chat en tiempo real) ---
 @router.websocket("/ws/chat/{usuario_id}")
 async def websocket_chat_endpoint(websocket: WebSocket, usuario_id: int, db: Session = Depends(database.get_db)):
