@@ -91,10 +91,15 @@ async function cargarDirectorioY_Solicitudes() {
     data.amigos.forEach(c => {
         directorioUsuarios[c.id] = c.nombre;
         if (noLeidos[c.id] === undefined) noLeidos[c.id] = 0;
-        
+
+        const iniciales = c.nombre.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase() || '?';
+        const avatarC = c.foto
+            ? `<span style="width:26px; height:26px; border-radius:50%; display:inline-block; vertical-align:middle; margin-right:8px; background-image:url('${c.foto}'); background-size:cover; background-position:center; flex-shrink:0;"></span>`
+            : `<span style="width:26px; height:26px; border-radius:50%; display:inline-block; vertical-align:middle; margin-right:8px; background:#58a598; color:#fff; text-align:center; font-size:10px; line-height:26px; flex-shrink:0;">${iniciales}</span>`;
+
         const html = `
-            <div class="chat-contact-item" id="contacto-${c.id}" onclick="abrirConversacion(${c.id}, '${escapeHTML(c.nombre)}')" style="display:flex; justify-content:space-between; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
-                <span style="font-size: 13px;"><span id="estado-icon-${c.id}">${c.online ? '🟢' : '⚪'}</span> ${escapeHTML(c.nombre)}</span> 
+            <div class="chat-contact-item" id="contacto-${c.id}" onclick="abrirConversacion(${c.id}, '${escapeHTML(c.nombre)}')" style="display:flex; justify-content:space-between; align-items:center; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
+                <span style="font-size: 13px; display:flex; align-items:center; min-width:0;"><span id="estado-icon-${c.id}">${c.online ? '🟢' : '⚪'}</span>${avatarC}<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHTML(c.nombre)}</span></span> 
                 <span id="badge-${c.id}" style="display: ${noLeidos[c.id] > 0 ? 'inline' : 'none'}; background: #ffcc00; border-radius: 50%; padding: 2px 6px; font-size: 10px;">
                     <span id="count-${c.id}">${noLeidos[c.id]}</span>
                 </span>

@@ -99,8 +99,13 @@ function renderizarTabla() {
         const sectorHtml = u.sector ? `<span style="background-color: ${u.sector.color || '#1a3644'}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${u.sector.nombre}</span>` : '<span style="color: #999; font-size: 11px; font-style: italic;">N/A</span>';
         const puestoTexto = u.puesto ? `<br><span style="font-size:11px; color:#58a598; font-weight:bold;">${u.puesto}</span>` : '';
 
+        const inicialesTabla = ((u.nombre || '?')[0] + (u.apellido || '?')[0]).toUpperCase();
+        const avatarTabla = u.foto
+            ? `<img src="${u.foto}" alt="foto" style="width:34px; height:34px; border-radius:50%; object-fit:cover; flex-shrink:0; margin-right:10px;">`
+            : `<span style="width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1a3644; color:#fff; font-size:13px; font-weight:bold; flex-shrink:0; margin-right:10px;">${inicialesTabla}</span>`;
+
         tr.innerHTML = `
-            <td><strong>${u.apellido}, ${u.nombre}</strong><br><span style="font-size:12px; color:#666;">${u.email}</span></td>
+            <td><div style="display:flex; align-items:center;">${avatarTabla}<div><strong>${u.apellido}, ${u.nombre}</strong><br><span style="font-size:12px; color:#666;">${u.email}</span></div></div></td>
             <td>${u.cuil}</td>
             <td><strong>${u.reparticion}</strong>${puestoTexto}</td>
             <td>${sectorHtml}</td>

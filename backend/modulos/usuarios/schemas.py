@@ -57,9 +57,29 @@ class UserResponse(BaseModel):
     roles: str 
     sector_id: Optional[int] = None  # <-- Campo opcional agregado aquí
     sector: Optional[SectorResponse] = None # <-- Permite devolver el nombre del sector al frontend
+    foto: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class FotoUpdate(BaseModel):
+    foto: str
+
+class PerfilResponse(BaseModel):
+    id: int
+    nombre: str
+    apellido: str
+    email: str
+    cuil: str
+    reparticion: str
+    puesto: Optional[str] = None
+    rol: str = "Operador"
+    sector: Optional[str] = None
+    activo: bool = False
+    aprobado: bool = False
+    fecha_creacion: Optional[datetime] = None
+    foto: Optional[str] = None
+    equipos_asignados: int = 0
 
 # --- 3. ESQUEMAS DE SEGURIDAD ---
 

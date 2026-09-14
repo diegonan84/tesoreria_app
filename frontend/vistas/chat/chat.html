@@ -10,10 +10,10 @@
 <body>
     <nav class="navbar-ba" id="global-navbar"></nav>
     <aside class="sidebar-ba" id="global-sidebar"></aside>
-    <div id="global-chat" class="chat-widget"></div>
 
-    <main class="chat-page">
-        <div class="messenger" id="messenger">
+    <div class="main-layout">
+        <main class="chat-page">
+            <div class="messenger" id="messenger">
 
             <!-- PANEL IZQUIERDO: LISTA DE CONVERSACIONES -->
             <aside class="messenger-lista">
@@ -45,6 +45,19 @@
                             <strong id="nombre-activo" style="color:#1a3644; font-size:15px;"></strong>
                             <div id="estado-activo" style="font-size:12px; color:#999;"></div>
                         </div>
+                        <div class="conv-menu">
+                            <button id="btn-menu-conv" class="messenger-btn-icon" title="Opciones">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                    <circle cx="5" cy="12" r="1.7"></circle>
+                                    <circle cx="12" cy="12" r="1.7"></circle>
+                                    <circle cx="19" cy="12" r="1.7"></circle>
+                                </svg>
+                            </button>
+                            <div id="menu-conversacion" class="conv-menu-dropdown" style="display:none;">
+                                <button id="opcion-ver-perfil" class="conv-menu-opcion">👤 Ver perfil</button>
+                                <button id="opcion-borrar-chat" class="conv-menu-opcion">🗑️ Borrar chat</button>
+                            </div>
+                        </div>
                     </header>
 
                     <div id="hilo-mensajes" class="messenger-hilo"></div>
@@ -65,11 +78,29 @@
                 </div>
             </section>
         </div>
-    </main>
+        </main>
+    </div>
+
+    <!-- MODAL: VER PERFIL DEL CONTACTO -->
+    <div id="modal-perfil" class="modal-overlay" style="display:none;">
+        <div class="modal-perfil-box">
+            <div style="text-align:right;">
+                <button id="btn-cerrar-perfil" class="messenger-btn-icon" title="Cerrar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="perfil-avatar-grande" id="perfil-avatar">?</div>
+            <h3 id="perfil-nombre" style="margin:12px 0 4px; color:#1a3644; text-align:center;"></h3>
+            <div id="perfil-sector" class="perfil-linea"></div>
+            <div id="perfil-estado" class="perfil-linea"></div>
+            <div id="perfil-contacto" class="perfil-linea"></div>
+        </div>
+    </div>
 
     <script src="/archivos/js/app.js"></script>
     <script src="/archivos/js/notificaciones.js"></script>
-    <script src="/archivos/js/chat.js"></script>
     <script src="/archivos/js/chat_historial.js"></script>
 
 </body>

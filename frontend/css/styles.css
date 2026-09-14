@@ -220,6 +220,131 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
 }
 
+/* --- PERFIL DE USUARIO --- */
+.perf-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.perf-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.perf-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: #1a3644;
+    color: #fff;
+    font-size: 34px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.perf-foto-btn {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #1a3644;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.perf-foto-btn:hover {
+    background: #28495a;
+}
+
+.perf-sub {
+    font-size: 13px;
+    color: #666;
+}
+
+.perf-badges {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.perf-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.perf-badge-rol {
+    background: #1a3644;
+    color: #fff;
+}
+
+.perf-badge-ok {
+    background: #e2f2e8;
+    color: #2e7d32;
+}
+
+.perf-badge-warn {
+    background: #fdf3d8;
+    color: #b58105;
+}
+
+.perf-linea {
+    margin-bottom: 14px;
+}
+
+.perf-linea label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.perf-linea input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+    background: #f4f7f8;
+    color: #555;
+}
+
+.perf-patrimonio {
+    text-align: center;
+    padding: 18px 0 6px;
+}
+
+.perf-patrimonio-num {
+    font-size: 44px;
+    font-weight: bold;
+    color: #58a598;
+    line-height: 1;
+}
+
+.perf-patrimonio-txt {
+    font-size: 13px;
+    color: #666;
+    margin-top: 8px;
+}
+
 
 
 

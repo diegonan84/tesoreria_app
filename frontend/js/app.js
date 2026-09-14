@@ -26,6 +26,7 @@ window.fetch = async function() {
 // --- FUNCIÓN MAESTRA (PLANTILLA COMÚN Y CACHE BUSTER) ---
 async function cargarPlantillaComun() {
     const path = window.location.pathname;
+    const esPaginaChat = path === "/chat";
 
     if (path.includes("/login") || path.includes("/registro") || path.includes("/recuperar")) return; 
 
@@ -46,6 +47,7 @@ async function cargarPlantillaComun() {
                 else if (path.includes("/patrimonio")) subtitulo.innerText = "Patrimonio";
                 else if (path.includes("/perfil")) subtitulo.innerText = "Mi Perfil";
                 else if (path.includes("/notificaciones")) subtitulo.innerText = "Gestión de Avisos";
+                else if (path.includes("/ayuda")) subtitulo.innerText = "Centro de Ayuda";
                 else subtitulo.innerText = "Panel Operativo";
             }
         }
@@ -56,9 +58,9 @@ async function cargarPlantillaComun() {
             document.getElementById("global-sidebar").innerHTML = await resSidebar.text();
         }
 
-        // 3. Inyectar el Widget de Chat
+        // 3. Inyectar el Widget de Chat (se desactiva en la página /chat)
         const resChat = await fetch('/archivos/componentes/chat.html' + cacheBuster);
-        if (resChat.ok && document.getElementById("global-chat")) {
+        if (resChat.ok && document.getElementById("global-chat") && !esPaginaChat) {
             document.getElementById("global-chat").innerHTML = await resChat.text();
         }
 
@@ -73,8 +75,8 @@ function verificarAccessoYInicializar() {
     // Si la sesión caducó, detener aquí
     if (!verificarAcceso()) return;
     
-    // Inicializamos el Chat
-    if (typeof inicializarChat === 'function') inicializarChat(); 
+    // Inicializamos el Chat (el widget flotante no corre en la página /chat)
+    if (typeof inicializarChat === 'function' && window.location.pathname !== '/chat') inicializarChat(); 
 
     // Inicializamos las Notificaciones y el Tiempo Real
     if (typeof cargarCampana === 'function') {

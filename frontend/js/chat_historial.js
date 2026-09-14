@@ -10,6 +10,7 @@ const ChatHistorial = (function() {
     let conversaciones = [];
     let contactoActivoId = null;
     let nombreActivo = '';
+    let conversacionActiva = null;
     let socket = null;
 
     const palette = ['#58a598', '#5b8bb1', '#7d6fb4', '#c0608f', '#b08a5b', '#5aa05a', '#b1625b', '#4f8b8b'];
@@ -57,7 +58,23 @@ const ChatHistorial = (function() {
         return t.replace(/\s+/g, ' ').slice(0, 60);
     };
 
-    const avatarHTML = (nombre) => {
+    const aplicarFotoAvatar = (el, foto, nombre) => {
+        if (foto) {
+            el.style.backgroundImage = `url("${foto}")`;
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundPosition = 'center';
+            el.innerText = '';
+        } else {
+            el.style.backgroundImage = '';
+            el.style.background = colorDe(nombre);
+            el.innerText = inicialesDe(nombre);
+        }
+    };
+
+    const avatarHTML = (nombre, foto) => {
+        if (foto) {
+            return `<div class="messenger-avatar" style="background-image:url("${foto}"); background-size:cover; background-position:center;"></div>`;
+        }
         const iniciales = inicialesDe(nombre);
         const color = colorDe(nombre);
         return `<div class="messenger-avatar" style="background:${color};">${escapeHTML(iniciales)}</div>`;
@@ -99,7 +116,7 @@ const ChatHistorial = (function() {
 
             lista.innerHTML += `
                 <div class="conversacion ${activa ? 'activa' : ''}" data-id="${c.contacto_id}" onclick="ChatHistorial.abrir(${c.contacto_id})">
-                    ${avatarHTML(c.nombre)}
+                    ${avatarHTML(c.nombre, c.foto)}
                     ${online}
                     <div class="conversacion-cuerpo">
                         <div class="conversacion-fila">
@@ -126,6 +143,7 @@ const ChatHistorial = (function() {
     const abrirConversacion = async (id) => {
         contactoActivoId = id;
         const conv = conversaciones.find(c => c.contacto_id === id);
+        conversacionActiva = conv || null;
         nombreActivo = conv ? conv.nombre : 'Contacto';
 
         document.getElementById('pantalla-vacia').style.display = 'none';
@@ -134,9 +152,9 @@ const ChatHistorial = (function() {
 
         document.getElementById('nombre-activo').innerText = nombreActivo;
         const avatarActivo = document.getElementById('avatar-activo');
-        avatarActivo.innerText = inicialesDe(nombreActivo);
-        avatarActivo.style.background = colorDe(nombreActivo);
+        aplicarFotoAvatar(avatarActivo, conv ? conv.foto : null, nombreActivo);
         actualizarEstadoActivo(conv ? conv.online : false);
+        cerrarMenuConversacion();
 
         if (conv && conv.no_leidos > 0) {
             conv.no_leidos = 0;
@@ -293,14 +311,89 @@ const ChatHistorial = (function() {
         hilo.scrollTop = hilo.scrollHeight;
     };
 
+    // ---------------- MENÚ DE OPCIONES (⋮) ----------------
+    const toggleMenuConversacion = (e) => {
+        e.stopPropagation();
+        const menu = document.getElementById('menu-conversacion');
+        if (!menu) return;
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    };
+
+    const cerrarMenuConversacion = () => {
+        const menu = document.getElementById('menu-conversacion');
+        if (menu) menu.style.display = 'none';
+    };
+
+    const abrirPerfil = () => {
+        cerrarMenuConversacion();
+        if (!conversacionActiva) return;
+
+        const c = conversacionActiva;
+        const avatar = document.getElementById('perfil-avatar');
+        aplicarFotoAvatar(avatar, c.foto, c.nombre);
+        avatar.style.backgroundSize = 'cover';
+
+        document.getElementById('perfil-nombre').innerText = c.nombre;
+        document.getElementById('perfil-sector').innerText = c.reparticion ? `Sector: ${c.reparticion}` : 'Sector: —';
+        document.getElementById('perfil-estado').innerText = c.online ? '🟢 En línea' : '⚪ Desconectado';
+        document.getElementById('perfil-contacto').innerText = c.es_contacto ? 'Es tu contacto' : 'Ya no es tu contacto';
+
+        const modal = document.getElementById('modal-perfil');
+        modal.style.display = 'flex';
+    };
+
+    const cerrarPerfil = () => {
+        document.getElementById('modal-perfil').style.display = 'none';
+    };
+
+    const volverAPantallaVacia = () => {
+        contactoActivoId = null;
+        conversacionActiva = null;
+        nombreActivo = '';
+        document.getElementById('pantalla-conversacion').style.display = 'none';
+        document.getElementById('pantalla-vacia').style.display = 'flex';
+        cerrarMenuConversacion();
+    };
+
+    const borrarChat = async () => {
+        cerrarMenuConversacion();
+        if (contactoActivoId === null) return;
+        if (!confirm(`¿Seguro que querés borrar la conversación con ${nombreActivo}?`)) return;
+
+        try {
+            const res = await fetch(`${API}/chat/historial/${contactoActivoId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Error al borrar el historial');
+
+            conversaciones = conversaciones.filter(c => c.contacto_id !== contactoActivoId);
+            renderizarConversaciones();
+            volverAPantallaVacia();
+
+            const vacia = document.getElementById('lista-vacia');
+            if (vacia) vacia.style.display = conversaciones.length === 0 ? 'block' : 'none';
+        } catch (e) {
+            console.error('Error borrando historial:', e);
+        }
+    };
+
     // ---------------- EMOJIS ----------------
+    const listaEmojisPropios = [
+        "😀","😂","🤣","😊","😍","🥰","😘","😜","🤪","😎","🤩","🥳","😏","😒","😞","😔",
+        "😟","😕","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰",
+        "🤗","🤔","🤭","🤫","🙄","😮","😴","🤤","😵","🤢","🤮","😷","👍","👎","👏","🙌",
+        "🤝","🙏","💪","🧠","👀","❤️","🔥","✨","🌟","🎉","🎊","💯","✅","❌","❓","❗"
+    ];
+
     const toggleEmojis = (e) => {
         e.stopPropagation();
         const picker = document.getElementById('emoji-picker-page');
         if (!picker) return;
 
-        if (picker.children.length === 0 && typeof window.listaEmojis !== 'undefined') {
-            window.listaEmojis.forEach(emoji => {
+        if (picker.children.length === 0) {
+            const fuente = (typeof window.listaEmojis !== 'undefined') ? window.listaEmojis : listaEmojisPropios;
+            fuente.forEach(emoji => {
                 const span = document.createElement('span');
                 span.innerText = emoji;
                 span.style.cssText = 'cursor:pointer; font-size:22px; padding:4px; display:inline-block; transition:transform .1s;';
@@ -330,6 +423,11 @@ const ChatHistorial = (function() {
         const inputMensaje = document.getElementById('input-mensaje');
         const inputBuscar = document.getElementById('input-buscar-conversaciones');
         const btnEmojis = document.getElementById('btn-emojis-page');
+        const btnMenu = document.getElementById('btn-menu-conv');
+        const opcionPerfil = document.getElementById('opcion-ver-perfil');
+        const opcionBorrar = document.getElementById('opcion-borrar-chat');
+        const btnCerrarPerfil = document.getElementById('btn-cerrar-perfil');
+        const modalPerfil = document.getElementById('modal-perfil');
 
         if (btnEnviar && inputMensaje) {
             btnEnviar.addEventListener('click', enviarMensaje);
@@ -348,11 +446,35 @@ const ChatHistorial = (function() {
 
         if (btnEmojis) {
             btnEmojis.addEventListener('click', toggleEmojis);
-            window.addEventListener('click', () => {
-                const picker = document.getElementById('emoji-picker-page');
-                if (picker && picker.style.display === 'flex') picker.style.display = 'none';
+        }
+
+        if (btnMenu) {
+            btnMenu.addEventListener('click', toggleMenuConversacion);
+        }
+
+        if (opcionPerfil) {
+            opcionPerfil.addEventListener('click', abrirPerfil);
+        }
+
+        if (opcionBorrar) {
+            opcionBorrar.addEventListener('click', borrarChat);
+        }
+
+        if (btnCerrarPerfil) {
+            btnCerrarPerfil.addEventListener('click', cerrarPerfil);
+        }
+
+        if (modalPerfil) {
+            modalPerfil.addEventListener('click', (e) => {
+                if (e.target === modalPerfil) cerrarPerfil();
             });
         }
+
+        window.addEventListener('click', () => {
+            const picker = document.getElementById('emoji-picker-page');
+            if (picker && picker.style.display === 'flex') picker.style.display = 'none';
+            cerrarMenuConversacion();
+        });
     };
 
     document.addEventListener('DOMContentLoaded', init);

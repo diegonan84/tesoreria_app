@@ -219,7 +219,66 @@ def cambiar_mi_clave(datos: schemas.PasswordChange, request: Request, db: Sessio
     )
     return {"mensaje": "Contraseña actualizada correctamente"}
 
-# ✨ NUEVOS ENDPOINTS PARA EL MAPA INTERACTIVO CON PATRIMONIO ✨
+# ✨ PERFIL PROPIO (GET) ✨
+
+@router.get("/usuarios/me", response_model=schemas.PerfilResponse)
+def obtener_mi_perfil(db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+    uid = usuario.get("id")
+    user = db.query(models.User).filter(models.User.id == uid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    sector_nombre = user.sector.nombre if (user.sector_id and user.sector) else None
+    equipos = db.query(Patrimonio).filter(Patrimonio.usuario_id == uid).count()
+
+    return {
+        "id": user.id,
+        "nombre": user.nombre,
+        "apellido": user.apellido,
+        "email": user.email,
+        "cuil": user.cuil,
+        "reparticion": user.reparticion,
+        "puesto": user.puesto,
+        "rol": user.roles or "Operador",
+        "sector": sector_nombre,
+        "activo": user.activo,
+        "aprobado": user.aprobado,
+        "fecha_creacion": user.fecha_creacion,
+        "foto": user.foto,
+        "equipos_asignados": equipos
+    }
+
+# ✨ FOTO DE PERFIL (PUT) ✨
+
+@router.put("/usuarios/me/foto")
+def actualizar_foto_perfil(datos: schemas.FotoUpdate, request: Request, db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+    uid = usuario.get("id")
+    foto = (datos.foto or "").strip()
+
+    if not foto:
+        raise HTTPException(status_code=400, detail="La foto no puede estar vacía")
+    if not foto.startswith("data:image/"):
+        raise HTTPException(status_code=400, detail="Formato de imagen no válido")
+    if len(foto) > 500_000:
+        raise HTTPException(status_code=400, detail="La imagen es demasiado grande (máximo ~350 KB)")
+
+    user = db.query(models.User).filter(models.User.id == uid).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    user.foto = foto
+    db.commit()
+
+    registrar_evento(
+        db, usuario_id=uid, accion="CAMBIAR_FOTO_PERFIL",
+        detalle="El usuario actualizó su foto de perfil",
+        ip_address=request.client.host,
+        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
+        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
+    )
+    return {"mensaje": "Foto actualizada", "foto": user.foto}
+
+# ✨ ENDPOINTS PARA EL MAPA INTERACTIVO CON PATRIMONIO ✨
 
 @router.get("/mapas-disponibles")
 def listar_mapas(db: Session = Depends(get_db), usuario=Depends(verificar_usuario_autenticado)):

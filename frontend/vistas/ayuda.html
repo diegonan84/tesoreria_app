@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Ayuda - Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <div class="main-layout">
+        <main class="dashboard-body">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <h2 style="color:#1a3644; margin:0;">Centro de Ayuda</h2>
+                    <p style="color:#666; font-size:13px; margin:6px 0 0;">Manuales de uso y guías para aprovechar la plataforma.</p>
+                </div>
+                <button id="btn-nuevo-manual" class="btn-action btn-approve" style="display:none; background:#1a3644;" onclick="togglePanelManual()">+ Subir manual</button>
+            </div>
+
+            <div id="panel-subir-manual" class="card" style="display:none; margin-bottom:25px; border-top:4px solid #58a598;">
+                <h3 style="color:#1a3644; margin-top:0; margin-bottom:15px;">Subir nuevo manual</h3>
+                <form id="form-manual" onsubmit="subirManual(event)">
+                    <label style="font-size:13px; font-weight:bold; color:#666;">Título *</label>
+                    <input type="text" id="manual-titulo" required placeholder="Ej: Manual de Patrimonio - Alta de Bienes" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit; margin:4px 0 12px;">
+                    <label style="font-size:13px; font-weight:bold; color:#666;">Descripción</label>
+                    <textarea id="manual-descripcion" rows="2" placeholder="¿De qué trata este manual?" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit; margin:4px 0 12px; resize:vertical;"></textarea>
+                    <label style="font-size:13px; font-weight:bold; color:#666;">Archivo PDF *</label>
+                    <input type="file" id="manual-archivo" accept=".pdf" required style="margin:4px 0 15px; display:block;">
+                    <div style="display:flex; gap:8px; justify-content:flex-end;">
+                        <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="togglePanelManual()">Cancelar</button>
+                        <button type="submit" class="btn-action btn-approve" style="background:#58a598;">Guardar manual</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="lista-manuales" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:20px;"></div>
+        </main>
+    </div>
+
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/ayuda.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarManuales();
+        });
+    </script>
+</body>
+</html>

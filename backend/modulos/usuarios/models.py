@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -27,6 +27,7 @@ class User(Base):
     activo = Column(Boolean, default=False)
     aprobado = Column(Boolean, default=False)
     roles = Column(String, default="Operador")
+    foto = Column(Text, nullable=True)
     tokens = relationship("PasswordResetToken", back_populates="user")
 
 class MapaGrid(Base):

@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mi Perfil - Tesorería</title>
     <link rel="stylesheet" href="/archivos/css/styles.css">
 </head>
@@ -9,56 +10,106 @@
     <nav class="navbar-ba" id="global-navbar"></nav>
     <aside class="sidebar-ba" id="global-sidebar"></aside>
     <div id="global-chat" class="chat-widget"></div>
-    <main class="dashboard-body">
-        <h2 style="color: #1a3644; margin-bottom: 25px;">Mi Perfil de Usuario</h2>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-            
-            <div class="card" style="border-top: 4px solid #1a3644;">
-                <h3 style="color: #1a3644; margin-top: 0; margin-bottom: 20px;">Información de Identidad</h3>
-                <div style="margin-bottom: 15px;">
-                    <label style="font-size: 13px; font-weight: bold; color: #666;">Nombre de Usuario</label>
-                    <input type="text" id="perf-nombre" disabled style="width:100%; padding:8px; border:1px solid #ccc; background:#f4f7f8; border-radius:4px; font-family:inherit; color:#555;">
+    <div class="main-layout">
+        <main class="dashboard-body">
+
+            <!-- CABECERA DE PERFIL -->
+            <div class="card perf-header">
+                <div class="perf-avatar-wrap">
+                    <div id="perf-avatar" class="perf-avatar">?</div>
+                    <button id="btn-foto" class="perf-foto-btn" title="Cambiar foto de perfil">📷</button>
+                    <input type="file" id="input-foto" accept="image/*" style="display:none;">
                 </div>
-                <div style="margin-bottom: 15px;">
-                    <label style="font-size: 13px; font-weight: bold; color: #666;">Correo Institucional</label>
-                    <input type="text" id="perf-email" disabled style="width:100%; padding:8px; border:1px solid #ccc; background:#f4f7f8; border-radius:4px; font-family:inherit; color:#555;">
-                </div>
-                <div>
-                    <label style="font-size: 13px; font-weight: bold; color: #666;">Roles Activos en Sistema</label>
-                    <input type="text" id="perf-roles" disabled style="width:100%; padding:8px; border:1px solid #ccc; background:#f4f7f8; border-radius:4px; font-family:inherit; color:#555; font-weight:bold;">
+                <div class="perf-header-info">
+                    <h2 id="perf-nombre-completo" style="color:#1a3644; margin:0 0 4px;"></h2>
+                    <div id="perf-sub" class="perf-sub"></div>
+                    <div class="perf-badges">
+                        <span class="perf-badge perf-badge-rol" id="perf-rol-badge">—</span>
+                        <span class="perf-badge perf-badge-ok" id="perf-estado-badge" style="display:none;">✔ Activo</span>
+                        <span class="perf-badge perf-badge-warn" id="perf-pendiente-badge" style="display:none;">⏳ Pendiente de aprobación</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="card" style="border-top: 4px solid #ffcc00;">
-                <h3 style="color: #1a3644; margin-top: 0; margin-bottom: 20px;">Seguridad y Contraseña</h3>
-                <form onsubmit="guardarCambioClave(event)">
-                    <div style="margin-bottom: 15px;">
-                        <label style="font-size: 13px; font-weight: bold; color: #333;">Contraseña Actual</label>
-                        <input type="password" id="perf-actual" required style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+
+                <div class="card" style="border-top: 4px solid #1a3644;">
+                    <h3 style="color:#1a3644; margin-top:0; margin-bottom:20px;">Información de Identidad</h3>
+                    <div class="perf-linea">
+                        <label>Nombre</label>
+                        <input type="text" id="perf-nombre" disabled>
                     </div>
-                    <div style="margin-bottom: 15px;">
-                        <label style="font-size: 13px; font-weight: bold; color: #333;">Nueva Contraseña (Mín. 8 caracteres)</label>
-                        <input type="password" id="perf-nueva" required minlength="8" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit;">
+                    <div class="perf-linea">
+                        <label>CUIL</label>
+                        <input type="text" id="perf-cuil" disabled>
                     </div>
-                    <div style="margin-bottom: 20px;">
-                        <label style="font-size: 13px; font-weight: bold; color: #333;">Confirmar Nueva Contraseña</label>
-                        <input type="password" id="perf-confirmar" required minlength="8" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-family:inherit;">
+                    <div class="perf-linea">
+                        <label>Correo Institucional</label>
+                        <input type="text" id="perf-email" disabled>
                     </div>
-                    <div style="display: flex; justify-content: flex-end;">
-                        <button type="submit" class="btn-action btn-approve" style="background: #1a3644;">Actualizar Contraseña</button>
+                </div>
+
+                <div class="card" style="border-top: 4px solid #ffcc00;">
+                    <h3 style="color:#1a3644; margin-top:0; margin-bottom:20px;">Datos Laborales</h3>
+                    <div class="perf-linea">
+                        <label>Repartición</label>
+                        <input type="text" id="perf-reparticion" disabled>
                     </div>
-                </form>
+                    <div class="perf-linea">
+                        <label>Puesto / Cargo</label>
+                        <input type="text" id="perf-puesto" disabled>
+                    </div>
+                    <div class="perf-linea">
+                        <label>Sector</label>
+                        <input type="text" id="perf-sector" disabled>
+                    </div>
+                    <div class="perf-linea">
+                        <label>Fecha de alta</label>
+                        <input type="text" id="perf-fecha-alta" disabled>
+                    </div>
+                </div>
+
+                <div class="card" style="border-top: 4px solid #58a598;">
+                    <h3 style="color:#1a3644; margin-top:0; margin-bottom:14px;">Mi Patrimonio</h3>
+                    <div class="perf-patrimonio">
+                        <div class="perf-patrimonio-num" id="perf-equipos">0</div>
+                        <div class="perf-patrimonio-txt">equipos asignados a tu nombre</div>
+                    </div>
+                    <p style="font-size:13px; color:#666; margin:12px 0 0;">¿Tenés un equipo sin cargar? Consultá con el administrador o el responsable de patrimonio para actualizar la asignación.</p>
+                </div>
+
+                <div class="card" style="border-top: 4px solid #1a3644;">
+                    <h3 style="color:#1a3644; margin-top:0; margin-bottom:20px;">Seguridad y Contraseña</h3>
+                    <form onsubmit="guardarCambioClave(event)">
+                        <div class="perf-linea">
+                            <label>Contraseña Actual</label>
+                            <input type="password" id="perf-actual" required>
+                        </div>
+                        <div class="perf-linea">
+                            <label>Nueva Contraseña (Mín. 8 caracteres)</label>
+                            <input type="password" id="perf-nueva" required minlength="8">
+                        </div>
+                        <div class="perf-linea">
+                            <label>Confirmar Nueva Contraseña</label>
+                            <input type="password" id="perf-confirmar" required minlength="8">
+                        </div>
+                        <div style="display:flex; justify-content:flex-end;">
+                            <button type="submit" class="btn-action btn-approve" style="background:#1a3644;">Actualizar Contraseña</button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
+
     <script src="/archivos/js/app.js"></script>
     <script src="/archivos/js/auth.js"></script>
     <script src="/archivos/js/notificaciones.js"></script>
     <script src="/archivos/js/chat.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            cargarDatosPantallaPerfil(); 
+            cargarDatosPantallaPerfil();
         });
     </script>
 </body>

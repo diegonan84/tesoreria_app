@@ -58,6 +58,7 @@ def obtener_directorio(db: Session = Depends(database.get_db), usuario=Depends(v
                 "id": u.id, 
                 "nombre": f"{u.nombre} {u.apellido}", 
                 "reparticion": u.reparticion,
+                "foto": u.foto,
                 "online": esta_online 
             })
 
@@ -204,6 +205,7 @@ def obtener_conversaciones(db: Session = Depends(database.get_db), usuario=Depen
             "contacto_id": otro_id,
             "nombre": f"{u.nombre} {u.apellido}" if u else "Usuario eliminado",
             "reparticion": u.reparticion if u else "",
+            "foto": u.foto if u else None,
             "online": otro_id in manager_chat.conexiones_activas,
             "es_contacto": otro_id in contactos_aceptados,
             "ultimo_mensaje": m.contenido,
@@ -238,6 +240,30 @@ def obtener_historial(contacto_id: int, db: Session = Depends(database.get_db), 
         "fecha": m.fecha_envio.isoformat() if m.fecha_envio else None,
         "es_mio": m.remitente_id == mi_id
     } for m in mensajes]
+
+
+# --- 5d. BORRAR TODO EL HISTORIAL DE UNA CONVERSACIÓN ---
+@router.delete("/chat/historial/{contacto_id}")
+def borrar_historial(contacto_id: int, request: Request, db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+    mi_id = usuario.get("id")
+    mensajes = db.query(models.MensajeChat).filter(
+        or_(
+            and_(models.MensajeChat.remitente_id == mi_id, models.MensajeChat.destinatario_id == contacto_id),
+            and_(models.MensajeChat.remitente_id == contacto_id, models.MensajeChat.destinatario_id == mi_id)
+        )
+    ).all()
+
+    cant = len(mensajes)
+    for m in mensajes:
+        db.delete(m)
+    db.commit()
+
+    registrar_evento(
+        db, usuario_id=mi_id, accion="CHAT_HISTORIAL_BORRADO",
+        detalle=f"Historial borrado con el usuario ID {contacto_id} ({cant} mensajes)",
+        ip_address=request.client.host
+    )
+    return {"mensaje": "Historial borrado", "borrados": cant}
 
 
 # --- 6. WEBSOCKET (Chat en tiempo real) ---
