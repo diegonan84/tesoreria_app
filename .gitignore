@@ -25,4 +25,10 @@ Thumbs.db
 
 # Archivos zip temporales
 *.zip
+
+# Archivos generados por la app (contenido subido por usuarios)
+frontend/fotos/
+frontend/manuales/
+
+# Copias de seguridad
 *.rar

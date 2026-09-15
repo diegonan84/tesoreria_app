@@ -175,12 +175,21 @@ body {
     line-height: 1.2; 
 }
 
-.user-circle-icon svg { 
-    width: 30px; 
-    height: 30px; 
-    border-radius: 50%; 
-    background-color: #0b3a47; 
-    display: block; 
+.user-circle-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-circle-icon svg {
+    width: 30px;
+    height: 30px;
+    background-color: #0b3a47;
+    display: block;
 }
 
 .nav-ba-separator.dark { 

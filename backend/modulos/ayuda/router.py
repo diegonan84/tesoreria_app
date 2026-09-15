@@ -11,7 +11,7 @@ from backend.modulos.ayuda import schemas
 
 router = APIRouter()
 
-DIR_MANUALES = os.path.join("frontend", "archivos", "manuales")
+DIR_MANUALES = os.path.join("frontend", "manuales")
 EXT_PERMITIDAS = {".pdf"}
 MAX_TAMANIO = 25 * 1024 * 1024  # 25 MB
 

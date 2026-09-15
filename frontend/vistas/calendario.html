@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Calendario - Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <style>
+        .cal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .cal-toolbar h2 { margin: 0; color: #1a3644; }
+        .cal-nav { display: flex; align-items: center; gap: 8px; }
+        .cal-btn { background: #1a3644; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 13px; }
+        .cal-btn:hover { background: #2a4a5a; }
+        .cal-btn.ghost { background: transparent; color: #1a3644; border: 1px solid #1a3644; }
+        .cal-grid-wrap { overflow-x: auto; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; min-width: 560px; }
+        .cal-dow { text-align: center; font-weight: bold; font-size: 11px; text-transform: uppercase; color: #666; padding: 6px 0; }
+        .cal-cell { min-height: 62px; background: #f4f7f8; border-radius: 6px; padding: 4px; cursor: pointer; border: 2px solid transparent; display: flex; flex-direction: column; }
+        .cal-cell:hover { background: #e8eef0; }
+        .cal-cell.sel { border-color: #1a3644; background: #eef4f5; }
+        .cal-cell.other { opacity: .45; }
+        .cal-num { font-size: 13px; font-weight: bold; color: #1a3644; }
+        .cal-dots { margin-top: auto; display: flex; flex-wrap: wrap; gap: 3px; }
+        .ev-dot { width: 8px; height: 8px; border-radius: 50%; background: #ffcc00; }
+        .ev-dot.urgente { background: #e06c4f; }
+        .cal-upcoming { margin-top: 15px; }
+        .ev-item { background: #fffdf2; border-left: 4px solid #ffcc00; border-radius: 4px; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .ev-item small { color: #999; font-weight: bold; }
+        .ev-item .acciones { display: flex; gap: 6px; }
+        .btn-mini { border: none; border-radius: 4px; padding: 4px 9px; cursor: pointer; font-family: inherit; font-size: 12px; }
+        .btn-mini.editar { background: #1a3644; color: white; }
+        .btn-mini.borrar { background: #dc3545; color: white; }
+        .modal-bg { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.45); z-index: 100000; justify-content: center; align-items: center; }
+        .modal-bg.abierto { display: flex; }
+        .modal-card { background: white; border-radius: 8px; padding: 20px; width: 400px; max-width: 92vw; box-shadow: 0 12px 30px rgba(0,0,0,.3); }
+        .modal-card h3 { margin-top: 0; color: #1a3644; }
+        .modal-card label { font-size: 12px; font-weight: bold; color: #333; display: block; margin: 10px 0 4px; }
+        .modal-card input, .modal-card textarea, .modal-card select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; box-sizing: border-box; }
+        .modal-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px; }
+        .cal-layout { display: grid; grid-template-columns: 1fr 320px; gap: 18px; align-items: start; }
+        .cal-layout aside { display: flex; flex-direction: column; gap: 15px; }
+        @media (max-width: 900px) { .cal-layout { grid-template-columns: 1fr; } }
+        .cal-vacio { color: #999; font-size: 13px; text-align: center; padding: 15px 0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <div class="main-layout">
+        <main class="dashboard-body">
+            <div class="cal-toolbar">
+                <h2>Agenda / Calendario</h2>
+                <div class="cal-nav">
+                    <button class="cal-btn" id="btn-mes-ant">◀ Anterior</button>
+                    <button class="cal-btn ghost" id="btn-hoy">Hoy</button>
+                    <button class="cal-btn" id="btn-mes-sig">Siguiente ▶</button>
+                </div>
+            </div>
+
+            <div class="card" style="border-top: 4px solid #ffcc00;">
+                <div class="cal-layout">
+                    <div class="cal-grid-wrap">
+                        <div class="cal-grid" id="cal-grid"></div>
+                    </div>
+                    <aside>
+                        <div class="card" style="border:none; padding: 0;">
+                            <h3 style="margin:0 0 10px; color:#1a3644; font-size:15px;" id="titulo-dia">Día seleccionado</h3>
+                            <div id="lista-dia"></div>
+                        </div>
+                        <div class="card" style="border:none; padding: 0;">
+                            <h3 style="margin:0 0 10px; color:#1a3644; font-size:15px;">📅 Próximos 7 días</h3>
+                            <div id="lista-proximos"></div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-bg" id="modal-evento">
+        <div class="modal-card">
+            <h3 id="modal-titulo">Nuevo evento</h3>
+            <form id="form-evento" onsubmit="guardarEvento(event)">
+                <input type="hidden" id="ev-id">
+                <label>Título</label>
+                <input type="text" id="ev-titulo" required maxlength="100" placeholder="Ej: Rendición de gastos">
+                <label>Fecha y hora</label>
+                <input type="datetime-local" id="ev-fecha" required>
+                <label>Descripción (opcional)</label>
+                <textarea id="ev-desc" rows="3" maxlength="500" style="resize:none;"></textarea>
+                <label>Recordarme</label>
+                <select id="ev-recordar">
+                    <option value="0">En el momento</option>
+                    <option value="10">10 minutos antes</option>
+                    <option value="30">30 minutos antes</option>
+                    <option value="60">1 hora antes</option>
+                    <option value="1440">1 día antes</option>
+                </select>
+                <div class="modal-acciones">
+                    <button type="button" class="btn-mini borrar" onclick="cerrarModal()" style="background:#888;">Cancelar</button>
+                    <button type="submit" class="btn-mini editar">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/calendario.js"></script>
+</body>
+</html>

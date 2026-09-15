@@ -42,13 +42,23 @@ async function cargarPlantillaComun() {
             document.getElementById("global-navbar").innerHTML = await resNavbar.text();
             const subtitulo = document.getElementById("nav-subtitle");
             if (subtitulo) {
-                if (path.includes("/usuarios")) subtitulo.innerText = "Gestión de Usuarios";
-                else if (path.includes("/auditoria")) subtitulo.innerText = "Auditoría de Accesos";
-                else if (path.includes("/patrimonio")) subtitulo.innerText = "Patrimonio";
-                else if (path.includes("/perfil")) subtitulo.innerText = "Mi Perfil";
-                else if (path.includes("/notificaciones")) subtitulo.innerText = "Gestión de Avisos";
-                else if (path.includes("/ayuda")) subtitulo.innerText = "Centro de Ayuda";
-                else subtitulo.innerText = "Panel Operativo";
+const titulosModulo = [
+                    ["/control-fichadas", "Control de Fichadas"],
+                    ["/consulta-asignaciones", "Elementos por Usuario/Destino"],
+                    ["/calendario", "Calendario"],
+                    ["/patrimonio", "Patrimonio"],
+                    ["/editor-mapa", "Editor de Plano"],
+                    ["/mapa", "Mapa de Puestos"],
+                    ["/sistemas", "Sistemas"],
+                    ["/usuarios", "Gestión de Usuarios"],
+                    ["/auditoria", "Auditoría de Accesos"],
+                    ["/notificaciones", "Gestión de Avisos"],
+                    ["/ayuda", "Centro de Ayuda"],
+                    ["/perfil", "Mi Perfil"],
+                    ["/chat", "Chat"]
+                ];
+                const encontrado = titulosModulo.find(([ruta]) => path.includes(ruta));
+                subtitulo.innerText = encontrado ? encontrado[1] : "Panel Operativo";
             }
         }
 
@@ -169,7 +179,37 @@ function verificarAcceso() {
         return false;
     }
 
+    mostrarAvatarNavbar();
+
     return true;
+}
+
+async function mostrarAvatarNavbar() {
+    const contenedor = document.querySelector(".user-circle-icon");
+    if (!contenedor) return;
+
+    let foto = localStorage.getItem("foto_perfil") || "";
+    const token = localStorage.getItem("token");
+    try {
+        const res = await fetch(`${API_URL}/usuarios/me`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const datos = await res.json();
+            foto = datos.foto || foto;
+            localStorage.setItem("foto_perfil", foto);
+            localStorage.setItem("nombre_perfil", `${datos.nombre || ""} ${datos.apellido || ""}`.trim());
+        }
+    } catch (e) {
+        /* Offline: usamos la última foto guardada en localStorage */
+    }
+
+    if (foto) {
+        contenedor.style.backgroundImage = `url("${foto}")`;
+        contenedor.style.backgroundSize = "cover";
+        contenedor.style.backgroundPosition = "center";
+        contenedor.innerHTML = "";
+    }
 }
 
 async function cerrarSesion() {

@@ -8,6 +8,9 @@ from typing import List
 import json
 import secrets
 import string
+import os
+import re
+import base64
 
 # Importamos las dependencias de seguridad desde nuestro nuevo módulo auth
 from backend.modulos.auth.dependencies import verificar_admin_actual, verificar_usuario_autenticado
@@ -250,6 +253,40 @@ def obtener_mi_perfil(db: Session = Depends(database.get_db), usuario=Depends(ve
 
 # ✨ FOTO DE PERFIL (PUT) ✨
 
+DIR_FOTOS = os.path.join("frontend", "fotos")
+
+def _guardar_foto(uid: int, foto: str) -> str:
+    """Convierte un data URL en archivo de imagen y devuelve la URL pública."""
+    match = re.match(r"^data:image/(\w+);base64,(.+)$", foto, re.DOTALL)
+    if not match:
+        raise HTTPException(status_code=400, detail="Formato de imagen no válido")
+
+    subtipo, b64 = match.groups()
+    try:
+        datos = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Imagen corrupta")
+
+    if len(datos) > 350_000:
+        raise HTTPException(status_code=400, detail="La imagen es demasiado grande (máximo ~350 KB)")
+
+    ext = "png" if subtipo.lower() == "png" else "jpg"
+    os.makedirs(DIR_FOTOS, exist_ok=True)
+
+    # Borramos la foto anterior del usuario (cualquier extensión)
+    for viejo in os.listdir(DIR_FOTOS):
+        if viejo.startswith(f"{uid}."):
+            try:
+                os.remove(os.path.join(DIR_FOTOS, viejo))
+            except OSError:
+                pass
+
+    ruta = os.path.join(DIR_FOTOS, f"{uid}.{ext}")
+    with open(ruta, "wb") as f:
+        f.write(datos)
+
+    return f"/archivos/fotos/{uid}.{ext}"
+
 @router.put("/usuarios/me/foto")
 def actualizar_foto_perfil(datos: schemas.FotoUpdate, request: Request, db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
     uid = usuario.get("id")
@@ -259,14 +296,12 @@ def actualizar_foto_perfil(datos: schemas.FotoUpdate, request: Request, db: Sess
         raise HTTPException(status_code=400, detail="La foto no puede estar vacía")
     if not foto.startswith("data:image/"):
         raise HTTPException(status_code=400, detail="Formato de imagen no válido")
-    if len(foto) > 500_000:
-        raise HTTPException(status_code=400, detail="La imagen es demasiado grande (máximo ~350 KB)")
 
     user = db.query(models.User).filter(models.User.id == uid).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    user.foto = foto
+    user.foto = _guardar_foto(uid, foto)
     db.commit()
 
     registrar_evento(
