@@ -23,8 +23,103 @@ function abrirNuevoSistema() {
 }
 
 // ============================================================================
-// --- LÓGICA: NOTA DE SALIDA DE EQUIPOS (PDF Y AUTOCOMPLETADO) ---
+// --- LÓGICA: NOTAS DE SALIDA (PDF + REGISTRO + HISTORIAL) ---
 // ============================================================================
+
+function togglePanelNotas() {
+    const panel = document.getElementById("panel-notas");
+    if (panel.style.display === "none") {
+        panel.style.display = "block";
+        cargarNotasSalida();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        panel.style.display = "none";
+    }
+}
+
+async function cargarNotasSalida() {
+    const tabla = document.getElementById("tabla-notas");
+    if (!tabla) return;
+    try {
+        const response = await fetch('/sistemas/notas-salida', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (!response.ok) throw new Error("Error al cargar las notas");
+        const notas = await response.json();
+
+        if (notas.length === 0) {
+            tabla.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#999; padding: 15px;">Todavía no se generaron notas de salida.</td></tr>`;
+            return;
+        }
+
+        tabla.innerHTML = notas.map(n => {
+            const fecha = new Date(n.fecha_creacion + "Z").toLocaleString('es-AR', {
+                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            const equipo = [n.tipo, n.marca, n.serie, n.numero_inventario ? `Inv: ${n.numero_inventario}` : '']
+                .filter(Boolean).join(" · ");
+            return `
+                <tr>
+                    <td style="font-weight: bold; color: #1a3644;">${escapeHTML(n.numero)}</td>
+                    <td>${escapeHTML(fecha)}</td>
+                    <td>${escapeHTML(n.nombre_apellido)}<br><small style="color:#999;">${escapeHTML(n.cuil_cuit)}</small></td>
+                    <td>${escapeHTML(n.motivo)}</td>
+                    <td>${escapeHTML(equipo)}</td>
+                    <td>${escapeHTML(n.creador_nombre || n.creador_email || "-")}</td>
+                    <td>
+                        <a href="${n.archivo_url}" target="_blank" class="btn-mini notas" style="background:#fd7e14; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px;">🖨️ Ver PDF</a>
+                    </td>
+                </tr>`;
+        }).join("");
+    } catch (error) {
+        tabla.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red; padding: 15px;">Error al cargar las notas: ${escapeHTML(error.message)}</td></tr>`;
+    }
+}
+
+async function exportarNotasSalida() {
+    try {
+        const response = await fetch('/sistemas/notas-salida/exportar', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (!response.ok) throw new Error("Error al exportar");
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Notas_de_Salida.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        alert("Error al exportar: " + error.message);
+    }
+}
+
+async function importarNotasSalida(input) {
+    if (!input.files.length) return;
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    try {
+        const response = await fetch('/sistemas/notas-salida/importar', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            body: formData
+        });
+        if (!response.ok) throw new Error("No se pudo importar");
+        const resultado = await response.json();
+        let msg = `✅ Se importaron ${resultado.importados} notas de salida.`;
+        if (resultado.errores && resultado.errores.length) {
+            msg += `\n\n⚠️ ${resultado.errores.length} filas con errores:\n` + resultado.errores.slice(0, 10).join("\n");
+        }
+        alert(msg);
+        cargarNotasSalida();
+    } catch (error) {
+        alert("Error al importar: " + error.message);
+    } finally {
+        input.value = "";
+    }
+}
 
 function abrirModalNotaSalida() {
     document.getElementById('modal-nota-salida').style.display = 'flex';
@@ -107,6 +202,9 @@ const inicializarNotaSalida = () => {
             
             // Cerramos la ventanita
             cerrarModalNotaSalida();
+
+            // Refrescamos el historial de notas registradas
+            cargarNotasSalida();
             
         } catch (error) {
             alert("Error al generar la nota: " + error.message);

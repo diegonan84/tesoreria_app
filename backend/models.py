@@ -9,3 +9,4 @@ from backend.modulos.chat.models import MensajeChat, ContactoChat
 from backend.modulos.notificaciones.models import NotificacionGlobal, LecturaNotificacion
 from backend.modulos.ayuda.models import ManualAyuda
 from backend.modulos.agenda.models import RecordatorioCalendario
+from backend.modulos.sistemas.models import NotaSalida

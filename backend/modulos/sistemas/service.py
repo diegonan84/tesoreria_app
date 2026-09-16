@@ -82,4 +82,11 @@ class SistemasService:
         c.showPage()
         c.save()
         buffer.seek(0)
-        return buffer
+
+        datos_resueltos = {
+            "tipo": tipo,
+            "marca": marca,
+            "serie": serie,
+            "inventario_str": inventario_str,
+        }
+        return buffer, datos_resueltos

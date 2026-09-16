@@ -29,6 +29,7 @@ Thumbs.db
 # Archivos generados por la app (contenido subido por usuarios)
 frontend/fotos/
 frontend/manuales/
+frontend/notas/
 
 # Copias de seguridad
 *.rar

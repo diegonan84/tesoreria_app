@@ -18,8 +18,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="color: #1a3644; margin: 0;">Gestión de Sistemas</h2>
                 <div>
-                    <!-- ✨ NUEVO BOTÓN: Generar Nota de Salida ✨ -->
-                    <button class="btn-action" style="background-color: #fd7e14; color: white; margin-right: 10px;" onclick="abrirModalNotaSalida()">📄 Generar Nota Salida de Equipo</button>
+                    <!-- ✨ NUEVO BOTÓN: Notas de Salida (generar + historial) ✨ -->
+                    <button class="btn-action" style="background-color: #fd7e14; color: white; margin-right: 10px;" onclick="togglePanelNotas()">📄 Notas de salida</button>
                     
                     <button class="btn-action btn-approve" onclick="abrirNuevoSistema()">+ Nuevo Sistema</button>
                 </div>
@@ -30,6 +30,38 @@
                 <p>Bienvenido al módulo de sistemas. Aquí gestionaremos las aplicaciones y accesos.</p>
                 <div id="contenedor-sistemas">
                     <!-- Se llenará con JavaScript -->
+                </div>
+            </div>
+
+            <!-- ✨ HISTORIAL DE NOTAS DE SALIDA ✨ -->
+            <div id="panel-notas" class="card" style="margin-top: 20px; border-top: 4px solid #fd7e14; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h3 style="margin: 0; color: #1a3644;">📋 Notas de salida</h3>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn-action" style="background-color: #1a3644; color: white;" onclick="exportarNotasSalida()">⬇️ Exportar</button>
+                        <button class="btn-action" style="background-color: #6c757d; color: white;" onclick="document.getElementById('input-importar-notas').click()">⬆️ Importar</button>
+                        <input type="file" id="input-importar-notas" accept=".xlsx,.csv" style="display:none;" onchange="importarNotasSalida(this)">
+                        <button class="btn-action" style="background-color: #fd7e14; color: white;" onclick="abrirModalNotaSalida()">➕ Generar nota de salida</button>
+                    </div>
+                </div>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Cada nota emitida queda registrada. Podés reimprimirla o ver sus datos desde acá.</p>
+                <div style="overflow-x: auto;">
+                    <table class="table-ba">
+                        <thead>
+                            <tr>
+                                <th>N°</th>
+                                <th>Fecha</th>
+                                <th>Receptor</th>
+                                <th>Motivo</th>
+                                <th>Equipo</th>
+                                <th>Generada por</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-notas">
+                            <tr><td colspan="7" style="text-align:center; color:#999; padding: 15px;">Cargando notas...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
