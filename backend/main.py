@@ -22,6 +22,7 @@ from backend.modulos.patrimonio import router as patrimonio_router
 from backend.modulos.sistemas import router as sistemas_router
 from backend.modulos.ayuda import router as ayuda_router
 from backend.modulos.agenda import router as agenda_router
+from backend.modulos.tickets import router as tickets_router
 
 
 app = FastAPI()
@@ -46,6 +47,7 @@ app.include_router(patrimonio_router.router, tags=["Patrimonio"])
 app.include_router(sistemas_router.router, tags=["Sistemas"])
 app.include_router(ayuda_router.router, tags=["Ayuda"])
 app.include_router(agenda_router.router, tags=["Agenda"])
+app.include_router(tickets_router.router, tags=["Mesa de Ayuda"])
 
 
 # --------------------------------------------------
@@ -99,6 +101,9 @@ def serve_calendario(): return FileResponse("frontend/vistas/calendario.html")
 
 @app.get("/notificaciones")
 def serve_notificaciones(): return FileResponse("frontend/vistas/notificaciones.html")
+
+@app.get("/tickets")
+def serve_tickets(): return FileResponse("frontend/vistas/tickets/tickets.html")
 
 @app.get("/control-fichadas")
 def serve_control_fichadas(): return FileResponse("frontend/vistas/control_fichadas.html")
