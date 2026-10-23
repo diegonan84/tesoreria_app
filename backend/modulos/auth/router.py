@@ -243,6 +243,8 @@ async def importar_usuarios_excel(
                 raise HTTPException(status_code=400, detail=f"Falta la columna requerida en el Excel: {col}")
 
         usuarios_agregados = 0
+        puestos_actualizados = 0
+        sin_cambios = 0
         errores = []
         
         # Cacheamos los sectores existentes para no saturar la base de datos
@@ -258,9 +260,15 @@ async def importar_usuarios_excel(
             if not email or not cuil:
                 continue
 
-            # Verificamos que el usuario no exista previamente
-            if db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first():
-                errores.append(f"Fila {index + 2}: CUIL o Email ya registrado ({cuil})")
+            # Si el usuario ya existe, solo actualizamos su puesto (si viene en el Excel y cambió)
+            usuario_existente = db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first()
+            if usuario_existente:
+                puesto_excel = str(row["Puesto"]).strip()
+                if puesto_excel and puesto_excel != (usuario_existente.puesto or ""):
+                    usuario_existente.puesto = puesto_excel
+                    puestos_actualizados += 1
+                else:
+                    sin_cambios += 1
                 continue
             
             # Procesamos el Sector
@@ -303,16 +311,20 @@ async def importar_usuarios_excel(
         db.commit()
         
         mensaje = f"Se importaron {usuarios_agregados} usuarios. Cada uno tiene una contraseña aleatoria única."
-        if errores:
-            mensaje += f" Se omitieron {len(errores)} por estar duplicados."
+        if puestos_actualizados:
+            mensaje += f" Se actualizó el puesto de {puestos_actualizados} usuarios existentes."
+        if sin_cambios:
+            mensaje += f" {sin_cambios} usuarios ya existían sin cambios de puesto."
 
         registrar_evento(
             db, usuario_id=admin_auth.get("id"), accion="IMPORTAR_USUARIOS_EXCEL",
-            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados desde archivo {file.filename}",
+            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados y {puestos_actualizados} puestos actualizados desde archivo {file.filename}",
             ip_address=request.client.host if request else None
         )
             
-        return {"mensaje": mensaje, "errores": errores}
+        return {"mensaje": mensaje, "errores": errores, "usuarios_agregados": usuarios_agregados, "puestos_actualizados": puestos_actualizados}
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")

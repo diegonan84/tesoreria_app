@@ -164,7 +164,7 @@ async function importarUsuariosExcel(event) {
         const data = await res.json();
         if (res.ok) {
             alert(data.mensaje);
-            if (data.errores && data.errores.length > 0) alert("Atención: Hubo " + data.errores.length + " filas omitidas por duplicado.");
+            if (data.errores && data.errores.length > 0) alert("Atención: Hubo " + data.errores.length + " filas con errores:\n" + data.errores.join("\n"));
             cargarUsuarios(); 
             if (typeof cargarSectores === "function") cargarSectores(); 
         } else alert("❌ Error: " + (data.detail || "No se pudo importar el archivo."));
