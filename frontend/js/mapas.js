@@ -70,14 +70,14 @@ function dibujarGrilla(estructura, puestosData) {
             const rotacionTexto = (celda.rotacion === 180) ? "rotate(180deg)" : "none";
 
             div.innerHTML = `
-                <div style="font-size: 11px; font-weight: 700; color: #6b7280; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: ${rotacionTexto}; transition: transform 0.3s;">
+                <div class="puesto-equipos" style="font-size: 11px; font-weight: 700; color: #6b7280; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: ${rotacionTexto}; transition: transform 0.3s;">
                     ${escapeHTML(pData.nombres_equipos.join(" / ") || "Vacio")}
                 </div>
-                <div style="font-size: 16px; font-weight: 900; color: #111827; text-align: center; border-bottom: 1px solid #d1d5db; padding-bottom: 2px; width: 80%; margin: 0 auto; transform: ${rotacionTexto}; transition: transform 0.3s;">
+                <div class="puesto-codigo" style="font-size: 16px; font-weight: 900; color: #111827; text-align: center; border-bottom: 1px solid #d1d5db; padding-bottom: 2px; width: 80%; margin: 0 auto; transform: ${rotacionTexto}; transition: transform 0.3s;">
                     ${escapeHTML(celda.numero_puesto)}
                 </div>
                 
-                <div style="display: flex; justify-content: center; margin: 4px 0;">
+                <div class="puesto-silla" style="display: flex; justify-content: center; margin: 4px 0;">
                     <svg width="35" height="32" viewBox="0 0 100 90">
                         <rect x="25" y="5" width="50" height="25" rx="12" fill="#7f8384" stroke="#4b4f52" stroke-width="3"/>
                         <rect x="15" y="25" width="12" height="35" rx="6" fill="#7f8384" stroke="#4b4f52" stroke-width="3"/>
@@ -86,7 +86,7 @@ function dibujarGrilla(estructura, puestosData) {
                     </svg>
                 </div>
 
-                <div style="margin: 0 auto; width: 90%; border-radius: 6px; min-height: 40px; display: flex; align-items: center; justify-content: center; text-align: center; ${estilosFondo}">
+                <div class="puesto-usuario" style="margin: 0 auto; width: 90%; border-radius: 6px; min-height: 40px; display: flex; align-items: center; justify-content: center; text-align: center; ${estilosFondo}">
                     <span style="font-size: 10px; font-weight: bold; line-height: 1.1; padding: 2px; display: block; transform: ${rotacionTexto}; transition: transform 0.3s;">
                         ${pData.usuarios_asignados.map(u => escapeHTML(u)).join("<br>") || "---"}
                     </span>
@@ -145,7 +145,7 @@ function imprimirMapa() {
     window.print();
 }
 
-function exportarImagen(boton) {
+function exportarImagen(boton, formatoTarjeta = false) {
     const elementoMapa = document.getElementById("grilla-mapa");
     const selectMapa = document.getElementById("select-mapa");
     const tituloMapa = selectMapa.options[selectMapa.selectedIndex].text;
@@ -156,10 +156,13 @@ function exportarImagen(boton) {
     html2canvas(elementoMapa, {
         backgroundColor: "#f0f4f8", 
         scale: 2, 
-        useCORS: true 
+        useCORS: true,
+        // En formato tarjeta se modifica solo la copia que se exporta, no el mapa en pantalla
+        onclone: formatoTarjeta ? aplicarFormatoTarjeta : undefined
     }).then(canvas => {
         const enlace = document.createElement('a');
-        enlace.download = `Mapa_${tituloMapa.replace(/\s+/g, '_')}.png`;
+        const sufijo = formatoTarjeta ? '_Tarjetas' : '';
+        enlace.download = `Mapa_${tituloMapa.replace(/\s+/g, '_')}${sufijo}.png`;
         enlace.href = canvas.toDataURL("image/png");
         enlace.click();
         
@@ -168,6 +171,33 @@ function exportarImagen(boton) {
         console.error("Error al exportar la imagen:", err);
         alert("Hubo un problema al generar la imagen.");
         boton.innerHTML = btnOriginal;
+    });
+}
+
+// Formato tarjeta: código del puesto arriba, línea y recuadro con el usuario, sin sillas ni equipos
+function aplicarFormatoTarjeta(documentoClonado) {
+    const grilla = documentoClonado.getElementById("grilla-mapa");
+    grilla.style.padding = "10px";
+
+    grilla.querySelectorAll(".puesto-card").forEach(card => {
+        card.style.justifyContent = "flex-start";
+        card.style.padding = "10px 0";
+        card.style.boxSizing = "border-box";
+
+        card.querySelectorAll(".puesto-silla, .puesto-equipos").forEach(el => el.remove());
+
+        const codigo = card.querySelector(".puesto-codigo");
+        codigo.style.fontSize = "20px";
+        codigo.style.paddingBottom = "6px";
+        codigo.style.marginBottom = "10px";
+
+        const usuario = card.querySelector(".puesto-usuario");
+        usuario.style.width = "85%";
+        usuario.style.flex = "1";
+        usuario.style.borderRadius = "8px";
+        const texto = usuario.querySelector("span");
+        texto.style.fontSize = "12px";
+        texto.style.padding = "4px";
     });
 }
 
