@@ -28,9 +28,14 @@
                 <button class="btn-action" style="background: #1a3644; color: white; display: flex; gap: 5px; align-items: center;" onclick="imprimirMapa()">
                     🖨️ Imprimir / PDF
                 </button>
-                <button class="btn-action" style="background: #58a598; color: white; display: flex; gap: 5px; align-items: center;" onclick="exportarImagen(this)">
-                    📸 Exportar PNG
-                </button>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <button class="btn-action" style="background: #58a598; color: white; display: flex; gap: 5px; align-items: center; justify-content: center;" onclick="exportarImagen(this)">
+                        📸 Exportar PNG
+                    </button>
+                    <button class="btn-action" style="background: #4b5563; color: white; display: flex; gap: 5px; align-items: center; justify-content: center;" onclick="exportarImagen(this, true)">
+                        🪪 Exportar en formato tarjeta
+                    </button>
+                </div>
             </div>
         </div>
 
