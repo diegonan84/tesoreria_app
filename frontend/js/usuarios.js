@@ -124,7 +124,7 @@ function renderizarTabla() {
         let badgesRoles = '';
 
         // ✨ FILTRO MÁGICO: Solo mostramos los roles que NO tengan un guion bajo (_)
-        const rolesPrincipales = listaRoles.filter(r => !r.includes('_'));
+        const rolesPrincipales = listaRoles.filter(r => !r.includes('_') && r !== 'Chat' && r !== 'Calendario');
 
         rolesPrincipales.forEach(r => {
             let bg = r === 'Administrador' ? '#ffcc00' : '#e0e6e8';
@@ -344,6 +344,7 @@ function abrirEdicion(id) {
     if (document.getElementById("edit-sector")) document.getElementById("edit-sector").value = usuario.sector_id || "";
 
     const listaRoles = usuario.roles ? usuario.roles.split(',') : [];
+    resetearArbol('edit');
     document.querySelectorAll('#panel-edicion .check-rol-edit').forEach(cb => { 
         cb.checked = listaRoles.includes(cb.value); 
     });
@@ -514,6 +515,7 @@ let listaSectoresGlobales = [];
 function abrirAlta() {
     // Resetea el formulario por si quedó algo escrito
     document.getElementById('form-alta').reset();
+    resetearArbol('alta');
     
     // Oculta el panel de edición si estaba abierto para no pisarse
     document.getElementById('panel-edicion').style.display = 'none';
@@ -731,16 +733,49 @@ async function resetearClave(usuarioId) {
 // LÓGICA DE UX PARA PERMISOS EN ÁRBOL
 // ============================================================================
 
-// Si tilda "Administrador", deshabilita y marca todo lo demás
+// Dibuja módulos y páginas desde CATALOGO_PERMISOS (app.js). Las páginas "defecto" vienen tildadas.
+function renderArbolPermisos(modo) {
+    const cont = document.getElementById(`arbol-modulos-${modo}`);
+    if (!cont) return;
+    cont.innerHTML = CATALOGO_PERMISOS.map(m => {
+        const clave = m.codigo.toLowerCase();
+        const moduloDefecto = m.paginas.some(p => p.defecto);
+        const paginas = m.paginas.map(p => `
+                <label><input type="checkbox" class="check-rol-${modo} sub-${modo}-${clave}" value="${p.codigo}" ${p.defecto ? "checked" : ""} onchange="checkPadre('${modo}', '${clave}')"> ${esc(p.nombre)}</label>`).join("");
+        return `
+            <div style="margin-left: 5px;">
+                <label style="font-weight: bold; color: #1a3644;">
+                    <input type="checkbox" class="check-rol-${modo}" value="${m.codigo}" id="${modo}-mod-${clave}" ${moduloDefecto ? "checked" : ""} onchange="toggleModulo('${modo}', '${clave}')"> ${m.icono} ${esc(m.nombre)}
+                </label>
+                <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">${paginas}
+                </div>
+            </div>`;
+    }).join("");
+}
+
+// Si tilda "Administrador", deshabilita y marca todo lo demás.
+// Al destildarlo vuelve a los permisos que había antes (no los borra).
 function toggleAdmin(modo) {
     const isAdmin = document.getElementById(`${modo}-rol-admin`).checked;
     const checkboxes = document.querySelectorAll(`.check-rol-${modo}`);
     
     checkboxes.forEach(cb => {
-        if (cb.value !== "Administrador" && cb.value !== "Operador") {
-            cb.checked = isAdmin;
-            cb.disabled = isAdmin; 
+        if (cb.value === "Administrador" || cb.value === "Operador") return;
+        if (isAdmin && !cb.disabled) {
+            cb.dataset.previo = cb.checked;
+            cb.checked = true;
+        } else if (!isAdmin && cb.disabled) {
+            cb.checked = cb.dataset.previo === "true";
         }
+        cb.disabled = isAdmin;
+    });
+}
+
+// Deja los checkboxes habilitados antes de cargar otro usuario / un alta nueva
+function resetearArbol(modo) {
+    document.querySelectorAll(`.check-rol-${modo}`).forEach(cb => {
+        if (cb.value !== "Operador") cb.disabled = false;
+        delete cb.dataset.previo;
     });
 }
 
@@ -774,6 +809,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 1. Si estamos en la vista de USUARIOS, cargamos la tabla y los sectores
     if (document.getElementById("tabla-usuarios")) {
+        renderArbolPermisos('edit');
+        renderArbolPermisos('alta');
         cargarUsuarios(); 
         cargarSectores(); 
     }

@@ -2,7 +2,7 @@
 # De esta forma los routers importan con "from backend import models"
 # sin tener que cambiar "import models" en cada módulo.
 
-from backend.modulos.usuarios.models import User, Sector, MapaGrid, MapaCelda, Equipo, ESTADOS_USUARIO, aplicar_estado
+from backend.modulos.usuarios.models import User, Sector, MapaGrid, MapaCelda, Equipo, ESTADOS_USUARIO, aplicar_estado, ROLES_POR_DEFECTO, roles_con_defecto
 from backend.modulos.auth.models import PasswordResetToken
 from backend.modulos.auditoria.models import RegistroAuditoria
 from backend.modulos.chat.models import MensajeChat, ContactoChat

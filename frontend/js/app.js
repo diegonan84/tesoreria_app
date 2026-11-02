@@ -1,7 +1,85 @@
 // ============================================================================
 // app.js - NÚCLEO Y CONFIGURACIÓN GLOBAL
 // ============================================================================
-const API_URL = "http://localhost:8000"; 
+const API_URL = "http://localhost:8000";
+
+/* ============================================================================
+   CATÁLOGO DE PERMISOS (módulos y páginas a las que se puede entrar)
+   Lo usan el sidebar, el control de acceso por ruta y el formulario de Usuarios.
+   El código de módulo y el de cada página se guardan en User.roles.
+   Mesa de Ayuda, Ayuda y Mi Perfil son de acceso básico (Operador).
+   ============================================================================ */
+const CATALOGO_PERMISOS = [
+    { codigo: "Calendario", nombre: "Calendario", icono: "📅", paginas: [
+        { codigo: "Cal_Agenda", nombre: "Agenda / Calendario", rutas: ["/calendario"], defecto: true },
+        { codigo: "Cal_Notificaciones", nombre: "Gestión de Notificaciones", rutas: ["/notificaciones"] },
+    ]},
+    { codigo: "Chat", nombre: "Chat", icono: "💬", paginas: [
+        { codigo: "Chat_Mensajes", nombre: "Mensajes", rutas: ["/chat"], defecto: true },
+    ]},
+    { codigo: "EstFin", nombre: "Estudios Financieros", icono: "🧮", paginas: [
+        { codigo: "EstFin_Planillas", nombre: "Planillas de liquidación", rutas: [] },
+        { codigo: "EstFin_Historico", nombre: "Histórico anual", rutas: [] },
+    ]},
+    { codigo: "RRHH", nombre: "Recursos Humanos", icono: "🧑‍💼", paginas: [
+        { codigo: "RRHH_Fichadas", nombre: "Control de Fichadas", rutas: ["/control-fichadas"] },
+    ]},
+    { codigo: "Rendicion", nombre: "Rendición y Control", icono: "📋", paginas: [
+        { codigo: "Rend_Rendiciones", nombre: "Rendiciones presentadas", rutas: [] },
+        { codigo: "Rend_Arqueos", nombre: "Arqueos de caja", rutas: [] },
+    ]},
+    { codigo: "Patrimonio", nombre: "Patrimonio", icono: "🏛️", paginas: [
+        { codigo: "Patr_Inventario", nombre: "Inventario", rutas: ["/patrimonio-vista", "/patrimonio-editar", "/patrimonio-imprimir"] },
+        { codigo: "Patr_Alta", nombre: "Alta de Bien", rutas: ["/patrimonio-nuevo"] },
+        { codigo: "Patr_Informatica", nombre: "Informática", rutas: ["/patrimonio-informatica"] },
+        { codigo: "Patr_Asignaciones", nombre: "Elementos por Usuario/Destino", rutas: ["/consulta-asignaciones"] },
+        { codigo: "Patr_Total", nombre: "Inventario Total", rutas: ["/patrimonio-inventario-total"] },
+        { codigo: "Patr_Historial", nombre: "Historial", rutas: ["/patrimonio-historial-vista"] },
+        { codigo: "Patr_Importar", nombre: "Importar Excel", rutas: ["/patrimonio-importar"] },
+        { codigo: "Patr_Barras", nombre: "Códigos de Barras", rutas: ["/patrimonio-codigos"] },
+        { codigo: "Patr_Reportes", nombre: "Reportes", rutas: ["/patrimonio-reportes"] },
+    ]},
+    { codigo: "Usuarios", nombre: "Usuarios", icono: "👥", paginas: [
+        { codigo: "Usu_Gestion", nombre: "Gestión de Usuarios", rutas: ["/usuarios"] },
+        { codigo: "Usu_Mapa", nombre: "Mapa de Puestos", rutas: ["/mapa"] },
+        { codigo: "Usu_Plano", nombre: "Editor de Plano", rutas: ["/editor-mapa"] },
+        { codigo: "Usu_Auditoria", nombre: "Auditoría de Accesos", rutas: ["/auditoria"] },
+    ]},
+    { codigo: "Sistemas", nombre: "Sistemas", icono: "💻", paginas: [
+        { codigo: "Sis_Aplicaciones", nombre: "Gestión de Aplicaciones", rutas: ["/sistemas"] },
+        { codigo: "Sis_Permisos", nombre: "Permisos y Accesos", rutas: [] },
+    ]},
+];
+
+// ¿El usuario (lista de roles) puede entrar a esta página/módulo?
+// Compatibilidad: si tiene el módulo pero ninguna página del módulo tildada, ve todas.
+function tienePermiso(roles, codigo) {
+    if (roles.includes("Administrador") || roles.includes(codigo)) return true;
+    const modulo = CATALOGO_PERMISOS.find(m => m.paginas.some(p => p.codigo === codigo));
+    return !!modulo && roles.includes(modulo.codigo) && !modulo.paginas.some(p => roles.includes(p.codigo));
+}
+
+function paginaDeRuta(path) {
+    for (const m of CATALOGO_PERMISOS) {
+        const pagina = m.paginas.find(p => p.rutas.includes(path));
+        if (pagina) return pagina;
+    }
+    return null;
+}
+
+// Oculta del sidebar los ítems sin permiso, y los módulos que quedan vacíos
+function aplicarPermisosSidebar(roles) {
+    const sidebar = document.getElementById("global-sidebar");
+    if (!sidebar) return;
+    sidebar.querySelectorAll("[data-permiso]").forEach(a => {
+        const li = a.closest("li") || a;
+        li.style.display = tienePermiso(roles, a.dataset.permiso) ? "" : "none";
+    });
+    sidebar.querySelectorAll("details.sidebar-item").forEach(det => {
+        const items = det.querySelectorAll(".submenu > li");
+        if (items.length && [...items].every(li => li.style.display === "none")) det.style.display = "none";
+    });
+}
 
 /* ============================================================================
    INTERCEPTOR GLOBAL DE SEGURIDAD (El "Guardia" de las peticiones)
@@ -71,7 +149,8 @@ const titulosModulo = [
 
         // 3. Inyectar el Widget de Chat (se desactiva en la página /chat)
         const resChat = await fetch('/archivos/componentes/chat.html' + cacheBuster);
-        if (resChat.ok && document.getElementById("global-chat") && !esPaginaChat) {
+        const rolesChat = (decodificarToken(localStorage.getItem("token")) || {}).roles || [];
+        if (resChat.ok && document.getElementById("global-chat") && !esPaginaChat && tienePermiso(rolesChat, "Chat_Mensajes")) {
             document.getElementById("global-chat").innerHTML = await resChat.text();
         }
 
@@ -87,7 +166,8 @@ function verificarAccessoYInicializar() {
     if (!verificarAcceso()) return;
     
     // Inicializamos el Chat (el widget flotante no corre en la página /chat)
-    if (typeof inicializarChat === 'function' && window.location.pathname !== '/chat') inicializarChat(); 
+    const roles = (decodificarToken(localStorage.getItem("token")) || {}).roles || [];
+    if (typeof inicializarChat === 'function' && window.location.pathname !== '/chat' && tienePermiso(roles, "Chat_Mensajes")) inicializarChat();
 
     // Inicializamos las Notificaciones y el Tiempo Real
     if (typeof cargarCampana === 'function') {
@@ -169,17 +249,10 @@ function verificarAcceso() {
     const roles = datosUsuario.roles || [];
     const esAdmin = roles.includes("Administrador");
 
-    const menuUsuarios = document.getElementById("menu-usuarios");
-    if (menuUsuarios && !esAdmin) menuUsuarios.style.display = "none";
-    
-    const menuPatrimonio = document.getElementById("menu-patrimonio");
-    if (menuPatrimonio && !esAdmin && !roles.includes("Patrimonio")) menuPatrimonio.style.display = "none";
+    aplicarPermisosSidebar(roles);
 
-    const menuNotif = document.getElementById("menu-notificaciones");
-    if (menuNotif && esAdmin) menuNotif.style.display = "block";
-    
-    const path = window.location.pathname;
-    if ((path === "/usuarios" || path === "/auditoria" || path === "/notificaciones") && !esAdmin) {
+    const pagina = paginaDeRuta(window.location.pathname);
+    if (pagina && !esAdmin && !tienePermiso(roles, pagina.codigo)) {
         window.location.href = "/";
         return false;
     }

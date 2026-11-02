@@ -298,10 +298,8 @@ async def importar_usuarios_excel(
                     sector_map[sector_nombre.lower()] = nuevo_sector.id
                     sector_id = nuevo_sector.id
 
-            # Procesamos el Rol (si viene vacío, asignamos Operador por precaución)
-            roles = str(row["Rol"]).strip()
-            if not roles:
-                roles = "Operador"
+            # Procesamos el Rol: siempre suma los permisos por defecto (Operador, Chat y Calendario)
+            roles = models.roles_con_defecto(str(row["Rol"]).strip())
 
             # 4. Insertamos el usuario con contraseña aleatoria
             clave_usuario = generar_clave_aleatoria()

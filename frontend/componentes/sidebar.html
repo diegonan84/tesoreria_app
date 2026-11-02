@@ -7,9 +7,9 @@
                 </svg> Calendario
             </summary>
             <ul class="submenu">
-                <li><a href="/calendario">Agenda / Calendario</a></li>
-                <li id="menu-notificaciones" style="display:none; border-top:1px solid #dde3e5; margin-top:4px; padding-top:4px;">
-                    <a href="/notificaciones" style="padding-top:8px;">Gestión de Notificaciones</a>
+                <li><a href="/calendario" data-permiso="Cal_Agenda">Agenda / Calendario</a></li>
+                <li id="menu-notificaciones" style="border-top:1px solid #dde3e5; margin-top:4px; padding-top:4px;">
+                    <a href="/notificaciones" data-permiso="Cal_Notificaciones" style="padding-top:8px;">Gestión de Notificaciones</a>
                 </li>
             </ul>
         </details>
@@ -30,8 +30,8 @@
                 </svg> Estudios Financieros
             </summary>
             <ul class="submenu">
-                <li><a href="#">Planillas de liquidación</a></li>
-                <li><a href="#">Histórico anual</a></li>
+                <li><a href="#" data-permiso="EstFin_Planillas">Planillas de liquidación</a></li>
+                <li><a href="#" data-permiso="EstFin_Historico">Histórico anual</a></li>
             </ul>
         </details>
 
@@ -45,7 +45,7 @@
                 </svg> Recursos Humanos
             </summary>
             <ul class="submenu">
-                <li><a href="/control-fichadas">Control de Fichadas</a></li>
+                <li><a href="/control-fichadas" data-permiso="RRHH_Fichadas">Control de Fichadas</a></li>
             </ul>
         </details>
 
@@ -58,8 +58,8 @@
                 </svg> Rendición y Control
             </summary>
             <ul class="submenu">
-                <li><a href="#">Rendiciones presentadas</a></li>
-                <li><a href="#">Arqueos de caja</a></li>
+                <li><a href="#" data-permiso="Rend_Rendiciones">Rendiciones presentadas</a></li>
+                <li><a href="#" data-permiso="Rend_Arqueos">Arqueos de caja</a></li>
             </ul>
         </details>
 
@@ -73,11 +73,11 @@
                 </svg> Patrimonio
             </summary>
             <ul class="submenu">
-                <li><a href="/patrimonio-vista">Inventario</a></li>
-                <li><a href="/patrimonio-nuevo">Alta de Bien</a></li>
-                <li><a href="/patrimonio-informatica">Informática</a></li>
-                <li><a href="/consulta-asignaciones">Elementos por Usuario/Destino</a></li>
-                <li><a href="/patrimonio-inventario-total">Inventario Total</a></li>
+                <li><a href="/patrimonio-vista" data-permiso="Patr_Inventario">Inventario</a></li>
+                <li><a href="/patrimonio-nuevo" data-permiso="Patr_Alta">Alta de Bien</a></li>
+                <li><a href="/patrimonio-informatica" data-permiso="Patr_Informatica">Informática</a></li>
+                <li><a href="/consulta-asignaciones" data-permiso="Patr_Asignaciones">Elementos por Usuario/Destino</a></li>
+                <li><a href="/patrimonio-inventario-total" data-permiso="Patr_Total">Inventario Total</a></li>
             </ul>
         </details>
 
@@ -89,10 +89,10 @@
                 </svg> Usuarios
             </summary>
             <ul class="submenu">
-                <li><a href="/usuarios">Gestión de Usuarios</a></li>
-                <li><a href="/mapa" id="menu-mapa" class="sidebar-item">🗺️ Mapa de Puestos</a></li>
-                <li><a href="/editor-mapa" id="menu-editor-mapa" class="sidebar-item">📐 Editor de Plano</a></li>
-                <li><a href="/auditoria">Auditoría de Accesos</a></li>
+                <li><a href="/usuarios" data-permiso="Usu_Gestion">Gestión de Usuarios</a></li>
+                <li><a href="/mapa" data-permiso="Usu_Mapa" id="menu-mapa" class="sidebar-item">🗺️ Mapa de Puestos</a></li>
+                <li><a href="/editor-mapa" data-permiso="Usu_Plano" id="menu-editor-mapa" class="sidebar-item">📐 Editor de Plano</a></li>
+                <li><a href="/auditoria" data-permiso="Usu_Auditoria">Auditoría de Accesos</a></li>
             </ul>
         </details>
 
@@ -107,8 +107,8 @@
                 </svg> Sistemas
             </summary>
             <ul class="submenu">
-                <li><a href="/sistemas">Gestión de Aplicaciones</a></li>
-                <li><a href="#">Permisos y Accesos</a></li>
+                <li><a href="/sistemas" data-permiso="Sis_Aplicaciones">Gestión de Aplicaciones</a></li>
+                <li><a href="#" data-permiso="Sis_Permisos">Permisos y Accesos</a></li>
             </ul>
         </details>
 
@@ -133,6 +133,6 @@
                 </svg> Chat
             </summary>
             <ul class="submenu">
-                <li><a href="/chat">Mensajes</a></li>
+                <li><a href="/chat" data-permiso="Chat_Mensajes">Mensajes</a></li>
             </ul>
         </details>

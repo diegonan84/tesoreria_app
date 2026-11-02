@@ -164,6 +164,15 @@ document.addEventListener('mouseout', e => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Enter en email o password dispara el login
+    ['email', 'password'].forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') hacerLogin(e);
+        });
+    });
+
     iniciarReloj();
     cargarClima();
     cargarRSS(); // fuente random en cada carga

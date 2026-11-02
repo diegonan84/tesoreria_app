@@ -280,7 +280,7 @@ def crear_usuario_manual(datos: schemas.UserUpdate, request: Request, db: Sessio
         estado="ACTIVO",
         activo=True,
         aprobado=True,
-        roles=",".join(datos.roles) if datos.roles else "Operador"
+        roles=",".join(datos.roles) if datos.roles else models.ROLES_POR_DEFECTO
     )
     db.add(nuevo_usuario)
     db.commit()

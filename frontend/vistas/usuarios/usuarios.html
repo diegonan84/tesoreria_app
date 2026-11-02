@@ -112,44 +112,8 @@
                             <input type="checkbox" class="check-rol-edit" value="Soporte"> 🎫 Soporte (atiende la Mesa de Ayuda)
                         </label>
 
-                        <!-- MÓDULO PATRIMONIO -->
-                        <div style="margin-left: 5px;">
-                            <label style="font-weight: bold; color: #1a3644;">
-                                <input type="checkbox" class="check-rol-edit" value="Patrimonio" id="edit-mod-patrimonio" onchange="toggleModulo('edit', 'patrimonio')"> 🏛️ Patrimonio
-                            </label>
-                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Inventario" onchange="checkPadre('edit', 'patrimonio')"> Inventario</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Alta" onchange="checkPadre('edit', 'patrimonio')"> Alta de Bien</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Informatica" onchange="checkPadre('edit', 'patrimonio')"> Informática</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Importar" onchange="checkPadre('edit', 'patrimonio')"> Importar Excel</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Historial" onchange="checkPadre('edit', 'patrimonio')"> Historial</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-patrimonio" value="Patr_Barras" onchange="checkPadre('edit', 'patrimonio')"> Códigos de Barras</label>
-                            </div>
-                        </div>
-
-                        <!-- MÓDULO USUARIOS -->
-                        <div style="margin-left: 5px;">
-                            <label style="font-weight: bold; color: #1a3644;">
-                                <input type="checkbox" class="check-rol-edit" value="Usuarios" id="edit-mod-usuarios" onchange="toggleModulo('edit', 'usuarios')"> 👥 Usuarios y RRHH
-                            </label>
-                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Gestion" onchange="checkPadre('edit', 'usuarios')"> Gestión de Usuarios</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Mapa" onchange="checkPadre('edit', 'usuarios')"> Mapa de Puestos</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Plano" onchange="checkPadre('edit', 'usuarios')"> Editor de Plano</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-usuarios" value="Usu_Auditoria" onchange="checkPadre('edit', 'usuarios')"> Auditoría de Accesos</label>
-                            </div>
-                        </div>
-
-                        <!-- MÓDULO SISTEMAS -->
-                        <div style="margin-left: 5px;">
-                            <label style="font-weight: bold; color: #1a3644;">
-                                <input type="checkbox" class="check-rol-edit" value="Sistemas" id="edit-mod-sistemas" onchange="toggleModulo('edit', 'sistemas')"> 💻 Sistemas
-                            </label>
-                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-sistemas" value="Sis_Aplicaciones" onchange="checkPadre('edit', 'sistemas')"> Gestión de Aplicaciones</label>
-                                <label><input type="checkbox" class="check-rol-edit sub-edit-sistemas" value="Sis_Permisos" onchange="checkPadre('edit', 'sistemas')"> Permisos</label>
-                            </div>
-                        </div>
+                        <!-- MÓDULOS Y PÁGINAS: se generan desde CATALOGO_PERMISOS (app.js) -->
+                        <div id="arbol-modulos-edit" style="display: flex; flex-direction: column; gap: 15px;"></div>
                     </div>
                 </div>
 
@@ -204,44 +168,8 @@
                             <input type="checkbox" class="check-rol-alta" value="Soporte"> 🎫 Soporte (atiende la Mesa de Ayuda)
                         </label>
 
-                        <!-- MÓDULO PATRIMONIO -->
-                        <div style="margin-left: 5px;">
-                            <label style="font-weight: bold; color: #1a3644;">
-                                <input type="checkbox" class="check-rol-alta" value="Patrimonio" id="alta-mod-patrimonio" onchange="toggleModulo('alta', 'patrimonio')"> 🏛️ Patrimonio
-                            </label>
-                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Inventario" onchange="checkPadre('alta', 'patrimonio')"> Inventario</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Alta" onchange="checkPadre('alta', 'patrimonio')"> Alta de Bien</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Informatica" onchange="checkPadre('alta', 'patrimonio')"> Informática</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Importar" onchange="checkPadre('alta', 'patrimonio')"> Importar Excel</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Historial" onchange="checkPadre('alta', 'patrimonio')"> Historial</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-patrimonio" value="Patr_Barras" onchange="checkPadre('alta', 'patrimonio')"> Códigos de Barras</label>
-                            </div>
-                        </div>
-
-                        <!-- MÓDULO USUARIOS -->
-                        <div style="margin-left: 5px;">
-                            <label style="font-weight: bold; color: #1a3644;">
-                                <input type="checkbox" class="check-rol-alta" value="Usuarios" id="alta-mod-usuarios" onchange="toggleModulo('alta', 'usuarios')"> 👥 Usuarios y RRHH
-                            </label>
-                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Gestion" onchange="checkPadre('alta', 'usuarios')"> Gestión de Usuarios</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Mapa" onchange="checkPadre('alta', 'usuarios')"> Mapa de Puestos</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Plano" onchange="checkPadre('alta', 'usuarios')"> Editor de Plano</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-usuarios" value="Usu_Auditoria" onchange="checkPadre('alta', 'usuarios')"> Auditoría de Accesos</label>
-                            </div>
-                        </div>
-
-                        <!-- MÓDULO SISTEMAS -->
-                        <div style="margin-left: 5px;">
-                            <label style="font-weight: bold; color: #1a3644;">
-                                <input type="checkbox" class="check-rol-alta" value="Sistemas" id="alta-mod-sistemas" onchange="toggleModulo('alta', 'sistemas')"> 💻 Sistemas
-                            </label>
-                            <div style="margin-left: 25px; margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-sistemas" value="Sis_Aplicaciones" onchange="checkPadre('alta', 'sistemas')"> Gestión de Aplicaciones</label>
-                                <label><input type="checkbox" class="check-rol-alta sub-alta-sistemas" value="Sis_Permisos" onchange="checkPadre('alta', 'sistemas')"> Permisos</label>
-                            </div>
-                        </div>
+                        <!-- MÓDULOS Y PÁGINAS: se generan desde CATALOGO_PERMISOS (app.js) -->
+                        <div id="arbol-modulos-alta" style="display: flex; flex-direction: column; gap: 15px;"></div>
                     </div>
                 </div>
 

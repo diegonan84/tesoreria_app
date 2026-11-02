@@ -11,6 +11,20 @@ class Sector(Base):
     activo = Column(Boolean, default=True)
     usuarios = relationship("User", back_populates="sector")
 
+# Permisos con los que arranca todo usuario nuevo: plataforma básica + Chat y Calendario.
+# Los códigos deben coincidir con CATALOGO_PERMISOS (frontend/js/app.js).
+ROLES_POR_DEFECTO = "Operador,Calendario,Cal_Agenda,Chat,Chat_Mensajes"
+
+
+def roles_con_defecto(roles: str) -> str:
+    """Agrega los permisos por defecto a una lista de roles separada por comas."""
+    lista = [r.strip() for r in (roles or "").split(",") if r.strip()]
+    for r in ROLES_POR_DEFECTO.split(","):
+        if r not in lista:
+            lista.append(r)
+    return ",".join(lista)
+
+
 class User(Base):
     __tablename__ = "usuarios"
     id = Column(Integer, primary_key=True, index=True)
@@ -31,7 +45,7 @@ class User(Base):
     aprobado = Column(Boolean, default=False)
     fecha_baja = Column(DateTime, nullable=True)
     motivo_baja = Column(String(255), nullable=True)
-    roles = Column(String, default="Operador")
+    roles = Column(String, default=ROLES_POR_DEFECTO)
     foto = Column(Text, nullable=True)
     tokens = relationship("PasswordResetToken", back_populates="user")
 
