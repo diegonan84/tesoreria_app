@@ -30,6 +30,20 @@
             </div>
         </div>
         
+        <!-- Filtros -->
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+            <input type="text" id="filtro-usuarios" placeholder="Buscar por nombre, email, CUIL o puesto..." oninput="renderizarTabla()" style="flex: 1; min-width: 220px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            <select id="filtro-estado-usuarios" onchange="renderizarTabla()" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="VIGENTES">Vigentes (sin bajas)</option>
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendientes</option>
+                <option value="ACTIVO">Activos</option>
+                <option value="SUSPENDIDO">Suspendidos</option>
+                <option value="BAJA">Dados de baja</option>
+            </select>
+            <span id="contador-usuarios" style="font-size: 13px; color: #666;"></span>
+        </div>
+
         <!-- Tabla de Datos -->
         <table class="table-ba">
             <thead>
@@ -91,6 +105,11 @@
                         <!-- OPERADOR (Base) -->
                         <label style="font-weight: bold; color: #555;">
                             <input type="checkbox" class="check-rol-edit" value="Operador" checked disabled> Operador (Acceso Básico - Plataforma)
+                        </label>
+
+                        <!-- MESA DE AYUDA: SOPORTE -->
+                        <label style="font-weight: bold; color: #1a3644;">
+                            <input type="checkbox" class="check-rol-edit" value="Soporte"> 🎫 Soporte (atiende la Mesa de Ayuda)
                         </label>
 
                         <!-- MÓDULO PATRIMONIO -->
@@ -180,6 +199,11 @@
                             <input type="checkbox" class="check-rol-alta" value="Operador" checked disabled> Operador (Acceso Básico - Plataforma)
                         </label>
 
+                        <!-- MESA DE AYUDA: SOPORTE -->
+                        <label style="font-weight: bold; color: #1a3644;">
+                            <input type="checkbox" class="check-rol-alta" value="Soporte"> 🎫 Soporte (atiende la Mesa de Ayuda)
+                        </label>
+
                         <!-- MÓDULO PATRIMONIO -->
                         <div style="margin-left: 5px;">
                             <label style="font-weight: bold; color: #1a3644;">
@@ -264,6 +288,35 @@
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
             <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cerrarModalEditarSector()">Cancelar</button>
             <button type="button" class="btn-action btn-approve" onclick="guardarEdicionSector()">Actualizar</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE BAJA DEFINITIVA -->
+    <div id="modal-backdrop-baja" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998;" onclick="cerrarModalBaja()"></div>
+    <div id="modal-baja" class="card" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 999; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 460px; max-width: 92%; max-height: 85vh; overflow-y: auto; border-left: 5px solid #dc3545;">
+        <h3 style="color: #1a3644; margin-top: 0;">Dar de baja a <span id="baja-nombre"></span></h3>
+        <p style="font-size: 13px; color: #555; margin-top: 0;">La baja es para quien deja el organismo. Si solo necesitás bloquear el acceso por un tiempo, usá <strong>Suspender</strong>.</p>
+        <input type="hidden" id="baja-id">
+        <div style="margin-bottom: 12px;">
+            <label style="font-size: 13px; font-weight: bold; color: #555;">Motivo *</label>
+            <select id="baja-motivo-tipo" onchange="document.getElementById('baja-motivo-otro').style.display = this.value === 'Otro' ? 'block' : 'none'" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="Renuncia">Renuncia</option>
+                <option value="Jubilación">Jubilación</option>
+                <option value="Pase a otra repartición">Pase a otra repartición</option>
+                <option value="Fin de contrato">Fin de contrato</option>
+                <option value="Cesantía">Cesantía</option>
+                <option value="Fallecimiento">Fallecimiento</option>
+                <option value="Otro">Otro...</option>
+            </select>
+            <input type="text" id="baja-motivo-otro" placeholder="Detalle del motivo" maxlength="200" style="display: none; width: 100%; margin-top: 6px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <div id="baja-resumen" style="font-size: 13px; background: #f8f9fa; border-radius: 4px; padding: 10px; margin-bottom: 12px;">Cargando...</div>
+        <label id="baja-liberar-label" style="font-size: 13px; display: none; margin-bottom: 15px;">
+            <input type="checkbox" id="baja-liberar-bienes" checked> Liberar los bienes asignados (quedan sin responsable, con registro en el historial)
+        </label>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn-action" style="background:#e0e6e8; color:#333;" onclick="cerrarModalBaja()">Cancelar</button>
+            <button type="button" class="btn-action" style="background:#dc3545; color:white;" onclick="confirmarBaja()">Confirmar baja</button>
         </div>
     </div>
 

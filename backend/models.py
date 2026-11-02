@@ -2,7 +2,7 @@
 # De esta forma los routers importan con "from backend import models"
 # sin tener que cambiar "import models" en cada módulo.
 
-from backend.modulos.usuarios.models import User, Sector, MapaGrid, MapaCelda, Equipo
+from backend.modulos.usuarios.models import User, Sector, MapaGrid, MapaCelda, Equipo, ESTADOS_USUARIO, aplicar_estado
 from backend.modulos.auth.models import PasswordResetToken
 from backend.modulos.auditoria.models import RegistroAuditoria
 from backend.modulos.chat.models import MensajeChat, ContactoChat
@@ -10,3 +10,4 @@ from backend.modulos.notificaciones.models import NotificacionGlobal, LecturaNot
 from backend.modulos.ayuda.models import ManualAyuda
 from backend.modulos.agenda.models import RecordatorioCalendario
 from backend.modulos.sistemas.models import NotaSalida
+from backend.modulos.tickets.models import Ticket, TicketComentario

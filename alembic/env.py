@@ -19,6 +19,10 @@ import backend.modulos.patrimonio.models
 import backend.modulos.usuarios.models
 import backend.modulos.auditoria.models 
 import backend.modulos.chat.models
+import backend.modulos.agenda.models
+import backend.modulos.ayuda.models
+import backend.modulos.sistemas.models
+import backend.modulos.tickets.models
 
 # (No importes backend.models aquí)
 # ✨ AGREGA ESTAS LÍNEAS (Ajusta los nombres según cómo tengas tus carpetas):

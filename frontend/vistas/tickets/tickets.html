@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesa de Ayuda | Tesorería</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <link rel="stylesheet" href="/archivos/css/tickets.css">
+</head>
+<body>
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <div class="main-layout">
+        <main class="dashboard-body">
+            <div class="tk-header">
+                <div>
+                    <h2>Mesa de Ayuda</h2>
+                    <p class="tk-sub" id="tk-sub">Cargá un pedido y seguí su estado desde acá.</p>
+                </div>
+                <div class="tk-header-acciones">
+                    <button class="tk-btn ghost" id="btn-exportar" style="display:none;" onclick="exportarTickets()">⬇️ Exportar</button>
+                    <button class="tk-btn primario" onclick="abrirNuevoTicket()">+ Nuevo ticket</button>
+                </div>
+            </div>
+
+            <!-- Contadores -->
+            <div class="tk-stats" id="tk-stats"></div>
+
+            <div class="card tk-card">
+                <!-- Pestañas (solo Soporte) -->
+                <div class="tk-tabs" id="tk-tabs" style="display:none;">
+                    <button class="tk-tab activa" data-alcance="todos">Todos</button>
+                    <button class="tk-tab" data-alcance="asignados">Asignados a mí</button>
+                    <button class="tk-tab" data-alcance="sin_asignar">Sin asignar</button>
+                    <button class="tk-tab" data-alcance="mios">Mis pedidos</button>
+                </div>
+
+                <!-- Filtros -->
+                <div class="tk-filtros">
+                    <input type="search" id="f-q" placeholder="Buscar por Nº, título, descripción o inventario…">
+                    <select id="f-estado">
+                        <option value="activos">Activos</option>
+                        <option value="">Todos los estados</option>
+                    </select>
+                    <select id="f-prioridad"><option value="">Toda prioridad</option></select>
+                    <select id="f-categoria"><option value="">Toda categoría</option></select>
+                </div>
+
+                <div class="tk-tabla-wrap">
+                    <table class="table-ba tk-tabla">
+                        <thead>
+                            <tr>
+                                <th style="width:95px;">Nº</th>
+                                <th>Pedido</th>
+                                <th class="col-soporte">Solicitante</th>
+                                <th style="width:95px;">Prioridad</th>
+                                <th style="width:105px;">Estado</th>
+                                <th>Asignado</th>
+                                <th style="width:120px;">Actualizado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tk-tbody"></tbody>
+                    </table>
+                    <div class="tk-vacio" id="tk-vacio" style="display:none;"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- PANEL LATERAL: DETALLE DEL TICKET -->
+    <div class="tk-overlay" id="tk-overlay" onclick="cerrarDetalle()"></div>
+    <aside class="tk-drawer" id="tk-drawer" aria-hidden="true">
+        <div class="tk-drawer-head">
+            <div>
+                <span class="tk-num" id="d-numero"></span>
+                <span id="d-estado-badge"></span>
+            </div>
+            <button class="tk-cerrar" onclick="cerrarDetalle()" title="Cerrar">✕</button>
+        </div>
+        <div class="tk-drawer-body" id="d-body"></div>
+        <form class="tk-respuesta" id="form-comentario" onsubmit="enviarComentario(event)">
+            <textarea id="c-texto" rows="3" maxlength="4000" placeholder="Escribí una respuesta…" required></textarea>
+            <div class="tk-respuesta-pie">
+                <label class="tk-interno" id="c-interno-wrap" style="display:none;">
+                    <input type="checkbox" id="c-interno"> Nota interna (solo Soporte)
+                </label>
+                <button type="submit" class="tk-btn primario">Enviar</button>
+            </div>
+        </form>
+    </aside>
+
+    <!-- MODAL: NUEVO TICKET -->
+    <div class="tk-modal-bg" id="modal-nuevo">
+        <div class="tk-modal">
+            <h3>Nuevo ticket</h3>
+            <p class="tk-sub">Contanos qué pasa. Soporte te va a responder por acá.</p>
+            <form id="form-nuevo" onsubmit="crearTicket(event)">
+                <label for="n-titulo">Asunto</label>
+                <input type="text" id="n-titulo" required minlength="3" maxlength="150" placeholder="Ej: La impresora del 3er piso no imprime">
+
+                <div class="tk-fila2">
+                    <div>
+                        <label for="n-categoria">Categoría</label>
+                        <select id="n-categoria"></select>
+                    </div>
+                    <div>
+                        <label for="n-prioridad">Prioridad</label>
+                        <select id="n-prioridad"></select>
+                    </div>
+                </div>
+
+                <label for="n-equipo">Equipo afectado <span class="tk-opc">(opcional)</span></label>
+                <select id="n-equipo" onchange="toggleInventarioManual()">
+                    <option value="">— Ninguno / no aplica —</option>
+                </select>
+                <input type="text" id="n-inventario" maxlength="50" placeholder="Nº de inventario" style="display:none; margin-top:6px;">
+
+                <label for="n-descripcion">Descripción</label>
+                <textarea id="n-descripcion" rows="5" required minlength="3" maxlength="4000" placeholder="¿Qué estabas haciendo? ¿Qué mensaje aparece? ¿Desde cuándo pasa?"></textarea>
+
+                <div class="tk-modal-acciones">
+                    <button type="button" class="tk-btn ghost" onclick="cerrarNuevoTicket()">Cancelar</button>
+                    <button type="submit" class="tk-btn primario" id="btn-crear">Crear ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="tk-toast" id="tk-toast"></div>
+
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/tickets.js"></script>
+</body>
+</html>

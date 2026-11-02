@@ -1,6 +1,6 @@
 import io
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import StreamingResponse, Response
@@ -123,9 +123,11 @@ def exportar_notas_salida(
 
     data = []
     for n in notas:
+        # Las fechas se guardan en UTC; Argentina es UTC-3, mostramos hora local
+        fecha_local = n.fecha_creacion + timedelta(hours=3) if n.fecha_creacion else None
         data.append({
             "Nº": n.numero,
-            "Fecha": n.fecha_creacion.strftime("%d/%m/%Y %H:%M") if n.fecha_creacion else "",
+            "Fecha": fecha_local.strftime("%d/%m/%Y %H:%M") if fecha_local else "",
             "Receptor": n.nombre_apellido,
             "CUIL/CUIT": n.cuil_cuit,
             "Motivo": n.motivo,
@@ -238,7 +240,8 @@ async def importar_notas_salida(
         fecha = _columna(fila, "fecha_creacion", "fecha", "Fecha")
         if fecha:
             try:
-                fecha = pd.Timestamp(fecha).to_pydatetime()
+                # La fecha del archivo se interpreta como hora local (UTC-3) y se guarda en UTC
+                fecha = pd.Timestamp(fecha).to_pydatetime() - timedelta(hours=3)
             except Exception:
                 fecha = datetime.utcnow()
         else:

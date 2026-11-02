@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from backend import models, utils, database
 from backend.database import get_db
 from collections import defaultdict
-from backend.modulos.patrimonio.models import Patrimonio
+from backend.modulos.patrimonio.models import Patrimonio, PatrimonioHistorial
+from backend.modulos.tickets.models import Ticket
+from backend.modulos.tickets.router import ESTADOS_FINALES
 from typing import List
 import json
 import secrets
@@ -86,68 +88,159 @@ def editar_sector(sector_id: int, datos: schemas.SectorCreate, request: Request,
 def listar_usuarios(db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
     return db.query(models.User).all()
 
+def _obtener_usuario(db: Session, user_id: int) -> models.User:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return user
+
+def _auditar(db: Session, request: Request, admin: dict, accion: str, detalle: str):
+    registrar_evento(
+        db, usuario_id=admin.get("id"), accion=accion, detalle=detalle,
+        ip_address=request.client.host,
+        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
+        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
+    )
+
+def _validar_inhabilitacion(db: Session, user: models.User, admin: dict):
+    """Evita que un admin se deje afuera a sí mismo o deje al sistema sin administradores."""
+    if user.id == admin.get("id"):
+        raise HTTPException(status_code=400, detail="No podés suspender ni dar de baja tu propio usuario")
+    if "Administrador" in (user.roles or "").split(","):
+        otros_admins = db.query(models.User).filter(
+            models.User.id != user.id,
+            models.User.estado == "ACTIVO",
+            models.User.roles.ilike("%Administrador%")
+        ).count()
+        if otros_admins == 0:
+            raise HTTPException(status_code=400, detail="Es el último administrador activo; asigná otro antes de inhabilitarlo")
+
+def _tickets_abiertos_asignados(db: Session, user_id: int):
+    return db.query(Ticket).filter(Ticket.asignado_id == user_id, Ticket.estado.notin_(ESTADOS_FINALES))
+
 @router.put("/admin/usuarios/{user_id}/aprobar")
 def aprobar_usuario(user_id: int, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    user.activo = True
-    user.aprobado = True
+    user = _obtener_usuario(db, user_id)
+    if user.estado != "PENDIENTE":
+        raise HTTPException(status_code=400, detail="El usuario no está pendiente de aprobación")
+    models.aplicar_estado(user, "ACTIVO")
     db.commit()
-
-    registrar_evento(
-        db, usuario_id=admin.get("id"), accion="APROBAR_USUARIO",
-        detalle=f"Usuario aprobado: {user.nombre} {user.apellido} ({user.email})",
-        ip_address=request.client.host,
-        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
-        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
-    )
+    _auditar(db, request, admin, "APROBAR_USUARIO", f"Usuario aprobado: {user.nombre} {user.apellido} ({user.email})")
     return {"mensaje": f"Usuario {user.email} aprobado correctamente"}
 
+@router.put("/admin/usuarios/{user_id}/rechazar")
+def rechazar_usuario(user_id: int, datos: schemas.SuspensionRequest, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    user = _obtener_usuario(db, user_id)
+    if user.estado != "PENDIENTE":
+        raise HTTPException(status_code=400, detail="Solo se pueden rechazar solicitudes pendientes")
+    motivo = (datos.motivo or "").strip() or "Solicitud de registro rechazada"
+    models.aplicar_estado(user, "BAJA", motivo)
+    db.commit()
+    _auditar(db, request, admin, "RECHAZAR_USUARIO", f"Registro rechazado: {user.nombre} {user.apellido} ({user.email}). Motivo: {motivo}")
+    return {"mensaje": f"Solicitud de {user.email} rechazada"}
+
+@router.put("/admin/usuarios/{user_id}/suspender")
+def suspender_usuario(user_id: int, datos: schemas.SuspensionRequest, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    """Inhabilitación temporal: no puede ingresar, pero conserva bienes, puesto y roles."""
+    user = _obtener_usuario(db, user_id)
+    if user.estado != "ACTIVO":
+        raise HTTPException(status_code=400, detail="Solo se pueden suspender usuarios activos")
+    _validar_inhabilitacion(db, user, admin)
+    motivo = (datos.motivo or "").strip() or None
+    models.aplicar_estado(user, "SUSPENDIDO", motivo)
+    db.commit()
+    _auditar(db, request, admin, "SUSPENDER_USUARIO",
+             f"Usuario suspendido: {user.nombre} {user.apellido} ({user.email})" + (f". Motivo: {motivo}" if motivo else ""))
+    return {"mensaje": f"Usuario {user.email} suspendido. Conserva sus bienes y puesto."}
+
+@router.get("/admin/usuarios/{user_id}/resumen-baja")
+def resumen_baja_usuario(user_id: int, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    """Lo que se va a liberar si se da de baja al usuario (para mostrarlo antes de confirmar)."""
+    user = _obtener_usuario(db, user_id)
+    bienes = db.query(Patrimonio).filter(Patrimonio.usuario_id == user.id, Patrimonio.activo == True).all()
+    return {
+        "puesto": user.puesto,
+        "bienes": [{"numero_inventario": b.numero_inventario, "descripcion": b.descripcion_bien or b.tipo or b.descripcion_item} for b in bienes],
+        "tickets_asignados": _tickets_abiertos_asignados(db, user.id).count(),
+    }
+
 @router.put("/admin/usuarios/{user_id}/baja")
-def dar_de_baja_usuario(user_id: int, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if not user.activo:
+def dar_de_baja_usuario(user_id: int, datos: schemas.BajaRequest, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    """Baja definitiva (el agente deja el organismo): libera puesto, tickets y opcionalmente bienes."""
+    user = _obtener_usuario(db, user_id)
+    if user.estado == "BAJA":
         raise HTTPException(status_code=400, detail="El usuario ya se encuentra dado de baja")
-    user.activo = False
+    motivo = (datos.motivo or "").strip()
+    if not motivo:
+        raise HTTPException(status_code=400, detail="Indicá el motivo de la baja")
+    if user.estado == "ACTIVO":
+        _validar_inhabilitacion(db, user, admin)
+
+    puesto_anterior = user.puesto
+    user.puesto = None
+
+    tickets = _tickets_abiertos_asignados(db, user.id).all()
+    for t in tickets:
+        t.asignado_id = None
+
+    bienes_liberados = []
+    if datos.liberar_bienes:
+        bienes = db.query(Patrimonio).filter(Patrimonio.usuario_id == user.id, Patrimonio.activo == True).all()
+        for b in bienes:
+            db.add(PatrimonioHistorial(
+                numero_inventario=b.numero_inventario,
+                usuario=admin.get("sub") or "admin",
+                accion="MODIFICACION",
+                campo_modificado="usuario_destino",
+                valor_anterior=b.usuario_destino or f"{user.apellido}, {user.nombre}",
+                valor_nuevo="",
+                ip=request.client.host,
+                observaciones=f"Liberado por baja del usuario {user.email}"
+            ))
+            b.usuario_id = None
+            b.usuario_destino = None
+            bienes_liberados.append(b.numero_inventario)
+
+    models.aplicar_estado(user, "BAJA", motivo)
     db.commit()
 
-    registrar_evento(
-        db, usuario_id=admin.get("id"), accion="BAJA_USUARIO",
-        detalle=f"Usuario dado de baja: {user.nombre} {user.apellido} ({user.email})",
-        ip_address=request.client.host,
-        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
-        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
-    )
-    return {"mensaje": f"Usuario {user.email} dado de baja correctamente"}
+    partes = [f"Motivo: {motivo}"]
+    if puesto_anterior:
+        partes.append(f"puesto {puesto_anterior} liberado")
+    if bienes_liberados:
+        partes.append(f"{len(bienes_liberados)} bienes liberados ({', '.join(bienes_liberados)})")
+    if tickets:
+        partes.append(f"{len(tickets)} tickets devueltos a la cola")
+    _auditar(db, request, admin, "BAJA_USUARIO", f"Usuario dado de baja: {user.nombre} {user.apellido} ({user.email}). " + "; ".join(partes))
+
+    return {
+        "mensaje": f"Usuario {user.email} dado de baja correctamente",
+        "puesto_liberado": puesto_anterior,
+        "bienes_liberados": len(bienes_liberados),
+        "tickets_liberados": len(tickets),
+    }
 
 @router.put("/admin/usuarios/{user_id}/alta")
-def dar_de_alta_usuario(user_id: int, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if user.activo:
-        raise HTTPException(status_code=400, detail="El usuario ya se encuentra activo")
-    user.activo = True
-    user.aprobado = True
+def reactivar_usuario(user_id: int, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
+    """Rehabilita a un suspendido o reincorpora a alguien dado de baja (los bienes liberados no vuelven)."""
+    user = _obtener_usuario(db, user_id)
+    if user.estado not in ("SUSPENDIDO", "BAJA"):
+        raise HTTPException(status_code=400, detail="El usuario no está suspendido ni dado de baja")
+    estado_anterior = user.estado
+    models.aplicar_estado(user, "ACTIVO")
     db.commit()
-
-    registrar_evento(
-        db, usuario_id=admin.get("id"), accion="ALTA_USUARIO",
-        detalle=f"Usuario reactivado: {user.nombre} {user.apellido} ({user.email})",
-        ip_address=request.client.host,
-        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
-        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido")
-    )
-    return {"mensaje": f"Usuario {user.email} dado de alta correctamente"}
+    accion = "REHABILITAR_USUARIO" if estado_anterior == "SUSPENDIDO" else "ALTA_USUARIO"
+    _auditar(db, request, admin, accion, f"Usuario reactivado ({estado_anterior.lower()} → activo): {user.nombre} {user.apellido} ({user.email})")
+    return {"mensaje": f"Usuario {user.email} reactivado correctamente"}
 
 @router.put("/admin/usuarios/{user_id}/editar")
 def editar_usuario_completo(user_id: int, datos: schemas.UserUpdate, request: Request, db: Session = Depends(database.get_db), admin=Depends(verificar_admin_actual)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user: raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
+    user = _obtener_usuario(db, user_id)
+    if db.query(models.User).filter(models.User.email == datos.email, models.User.id != user_id).first():
+        raise HTTPException(status_code=400, detail="El correo electrónico ya pertenece a otro usuario.")
+    if db.query(models.User).filter(models.User.cuil == datos.cuil, models.User.id != user_id).first():
+        raise HTTPException(status_code=400, detail="El CUIL ya pertenece a otro usuario.")
+
     user.nombre = datos.nombre
     user.apellido = datos.apellido
     user.cuil = datos.cuil
@@ -184,6 +277,7 @@ def crear_usuario_manual(datos: schemas.UserUpdate, request: Request, db: Sessio
         puesto=datos.puesto,
         sector_id=datos.sector_id,
         password_hash=utils.get_password_hash(_generar_clave_aleatoria()),
+        estado="ACTIVO",
         activo=True,
         aprobado=True,
         roles=",".join(datos.roles) if datos.roles else "Operador"
@@ -335,7 +429,11 @@ def obtener_estado_mapa(mapa_id: int = Query(...), db: Session = Depends(get_db)
         if eq.puesto:
             puesto_a_equipos[eq.puesto].append(eq)
 
-    usuarios = db.query(models.User).filter(models.User.puesto.in_(puestos_ids)).all()
+    # Los suspendidos y dados de baja no se muestran ocupando un puesto
+    usuarios = db.query(models.User).filter(
+        models.User.puesto.in_(puestos_ids),
+        models.User.estado.notin_(("SUSPENDIDO", "BAJA"))
+    ).all()
     puesto_a_usuarios = defaultdict(list)
     for u in usuarios:
         if u.puesto:
@@ -410,6 +508,8 @@ def actualizar_puesto(piso: str, numero_puesto: str, datos: schemas.PuestoEdit, 
     
     if datos.usuario_id:
         usuario_db = db.query(models.User).filter(models.User.id == datos.usuario_id).first()
+        if usuario_db and usuario_db.estado in ("SUSPENDIDO", "BAJA"):
+            raise HTTPException(status_code=400, detail="No se puede asignar un puesto a un usuario suspendido o dado de baja")
         if usuario_db:
             usuario_db.puesto = numero_puesto
             if 'equipo' in locals() and equipo:

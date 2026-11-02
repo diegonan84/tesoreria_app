@@ -81,10 +81,15 @@ def login(req: schemas.UserLogin, request: Request, db: Session = Depends(databa
         raise HTTPException(status_code=400, detail="Credenciales incorrectas")
     
     if not user.activo:
+        mensajes = {
+            "PENDIENTE": "Tu usuario está pendiente de aprobación por un administrador.",
+            "SUSPENDIDO": "Tu usuario está suspendido temporalmente. Consultá con un administrador.",
+            "BAJA": "Tu usuario fue dado de baja del sistema.",
+        }
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Tu usuario está pendiente de aprobación por un administrador."
-        )    
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=mensajes.get(user.estado, mensajes["PENDIENTE"])
+        )
 
     # 3. Cruzamos el hostname con el registro de Informática
     bien, es_suya = vincular_equipo_patrimonio(db, pc_nombre, user.id)
@@ -217,6 +222,13 @@ def resetear_clave_admin(
     return {"mensaje": f"Clave reseteada para {usuario.nombre} {usuario.apellido}", "nueva_clave": nueva_clave}
 
 
+def _texto_celda(valor) -> str:
+    # Excel guarda los números como float (867 -> 867.0); los pasamos a texto sin el ".0"
+    if isinstance(valor, float) and valor.is_integer():
+        valor = int(valor)
+    return str(valor).strip()
+
+
 # --- ENDPOINT PARA IMPORTAR USUARIOS DESDE EXCEL ---
 @router.post("/admin/usuarios/importar")
 async def importar_usuarios_excel(
@@ -243,6 +255,8 @@ async def importar_usuarios_excel(
                 raise HTTPException(status_code=400, detail=f"Falta la columna requerida en el Excel: {col}")
 
         usuarios_agregados = 0
+        puestos_actualizados = 0
+        sin_cambios = 0
         errores = []
         
         # Cacheamos los sectores existentes para no saturar la base de datos
@@ -251,16 +265,22 @@ async def importar_usuarios_excel(
 
         # 3. Recorremos fila por fila
         for index, row in df.iterrows():
-            email = str(row["Correo Electrónico"]).strip()
-            cuil = str(row["CUIL"]).strip()
+            email = _texto_celda(row["Correo Electrónico"])
+            cuil = _texto_celda(row["CUIL"])
             
             # Ignoramos filas totalmente en blanco
             if not email or not cuil:
                 continue
 
-            # Verificamos que el usuario no exista previamente
-            if db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first():
-                errores.append(f"Fila {index + 2}: CUIL o Email ya registrado ({cuil})")
+            # Si el usuario ya existe, solo actualizamos su puesto (si cambió; vacío en el Excel lo quita)
+            usuario_existente = db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first()
+            if usuario_existente:
+                puesto_excel = _texto_celda(row["Puesto"])
+                if puesto_excel != (usuario_existente.puesto or ""):
+                    usuario_existente.puesto = puesto_excel or None
+                    puestos_actualizados += 1
+                else:
+                    sin_cambios += 1
                 continue
             
             # Procesamos el Sector
@@ -291,11 +311,11 @@ async def importar_usuarios_excel(
                 cuil=cuil,
                 email=email,
                 reparticion=str(row["Repartición"]).strip(),
-                puesto=str(row["Puesto"]).strip(),
+                puesto=_texto_celda(row["Puesto"]) or None,
                 roles=roles,
                 sector_id=sector_id,
                 password_hash=utils.get_password_hash(clave_usuario),
-                activo=True  # Quedan aprobados por defecto al ser importados por el Admin
+                estado="ACTIVO", activo=True, aprobado=True  # Quedan aprobados por defecto al ser importados por el Admin
             )
             db.add(nuevo_usuario)
             usuarios_agregados += 1
@@ -303,16 +323,20 @@ async def importar_usuarios_excel(
         db.commit()
         
         mensaje = f"Se importaron {usuarios_agregados} usuarios. Cada uno tiene una contraseña aleatoria única."
-        if errores:
-            mensaje += f" Se omitieron {len(errores)} por estar duplicados."
+        if puestos_actualizados:
+            mensaje += f" Se actualizó el puesto de {puestos_actualizados} usuarios existentes."
+        if sin_cambios:
+            mensaje += f" {sin_cambios} usuarios ya existían sin cambios de puesto."
 
         registrar_evento(
             db, usuario_id=admin_auth.get("id"), accion="IMPORTAR_USUARIOS_EXCEL",
-            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados desde archivo {file.filename}",
+            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados y {puestos_actualizados} puestos actualizados desde archivo {file.filename}",
             ip_address=request.client.host if request else None
         )
             
-        return {"mensaje": mensaje, "errores": errores}
+        return {"mensaje": mensaje, "errores": errores, "usuarios_agregados": usuarios_agregados, "puestos_actualizados": puestos_actualizados}
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")

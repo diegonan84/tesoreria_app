@@ -50,6 +50,7 @@ const titulosModulo = [
                     ["/editor-mapa", "Editor de Plano"],
                     ["/mapa", "Mapa de Puestos"],
                     ["/sistemas", "Sistemas"],
+                    ["/tickets", "Mesa de Ayuda"],
                     ["/usuarios", "Gestión de Usuarios"],
                     ["/auditoria", "Auditoría de Accesos"],
                     ["/notificaciones", "Gestión de Avisos"],
@@ -118,8 +119,12 @@ function escapeHTML(texto) {
 
 function decodificarToken(token) {
     try {
-        const payloadBase64 = token.split('.')[1];
-        return JSON.parse(atob(payloadBase64));
+        // El JWT usa base64url (con '-' y '_', sin relleno) y el JSON va en UTF-8:
+        // lo normalizamos para que atob no falle y los nombres con tildes se lean bien.
+        let payloadBase64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (payloadBase64.length % 4) payloadBase64 += '=';
+        const bytes = Uint8Array.from(atob(payloadBase64), c => c.charCodeAt(0));
+        return JSON.parse(new TextDecoder('utf-8').decode(bytes));
     } catch (error) {
         return null;
     }

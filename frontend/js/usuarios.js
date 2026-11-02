@@ -58,56 +58,95 @@ function actualizarIconosOrden(columna) {
     if (iconActivo) iconActivo.innerHTML = ordenAscendente ? ' ▲' : ' ▼';
 }
 
+// Escapa texto antes de inyectarlo en innerHTML (los datos de auto-registro no son confiables)
+function esc(valor) {
+    return String(valor ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+const ESTADOS_UI = {
+    PENDIENTE:  { badge: "badge-pending",  texto: "PENDIENTE" },
+    ACTIVO:     { badge: "badge-approved", texto: "ACTIVO" },
+    SUSPENDIDO: { badge: "badge-rejected", texto: "SUSPENDIDO" },
+    BAJA:       { badge: "badge-rejected", texto: "BAJA", estilo: "background:#6c757d; color:#fff;" },
+};
+
+function botonesEstado(u) {
+    const btn = (color, fn, texto, txtColor = "white") =>
+        `<button class="btn-action" style="background:${color}; color:${txtColor}; margin-right:5px;" onclick="${fn}(${u.id})">${texto}</button>`;
+    switch (u.estado) {
+        case "PENDIENTE":  return btn("#198754", "aprobarUsuario", "Aprobar") + btn("#6c757d", "rechazarUsuario", "Rechazar");
+        case "ACTIVO":     return btn("#ffc107", "suspenderUsuario", "Suspender", "black") + btn("#dc3545", "abrirModalBaja", "Dar de Baja");
+        case "SUSPENDIDO": return btn("#198754", "darDeAlta", "Rehabilitar") + btn("#dc3545", "abrirModalBaja", "Dar de Baja");
+        case "BAJA":       return btn("#198754", "darDeAlta", "Reincorporar");
+        default:           return "";
+    }
+}
+
+function usuariosFiltrados() {
+    const texto = (document.getElementById("filtro-usuarios")?.value || "").trim().toLowerCase();
+    const estado = document.getElementById("filtro-estado-usuarios")?.value ?? "VIGENTES";
+    return usuariosGlobales.filter(u => {
+        if (estado === "VIGENTES" && u.estado === "BAJA") return false;
+        if (estado && estado !== "VIGENTES" && u.estado !== estado) return false;
+        if (!texto) return true;
+        return [u.nombre, u.apellido, u.email, u.cuil, u.puesto, u.reparticion]
+            .some(v => (v || "").toLowerCase().includes(texto));
+    });
+}
+
 function renderizarTabla() {
     const tbody = document.getElementById("tabla-usuarios");
     if (!tbody) return;
-    tbody.innerHTML = ""; 
+    tbody.innerHTML = "";
 
-    usuariosGlobales.forEach(u => {
+    const lista = usuariosFiltrados();
+    const contador = document.getElementById("contador-usuarios");
+    if (contador) contador.textContent = `${lista.length} de ${usuariosGlobales.length} usuarios`;
+    if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#999; padding:20px;">No hay usuarios que coincidan con el filtro.</td></tr>`;
+        return;
+    }
+
+    lista.forEach(u => {
         const tr = document.createElement("tr");
-        const inactivo = u.aprobado === true && u.activo === false;
-        let badgeActivo;
-        if (inactivo) badgeActivo = `<span class="badge badge-rejected">INHABILITADO</span>`;
-        else badgeActivo = u.activo ? `<span class="badge badge-approved">APROBADO</span>` : `<span class="badge badge-pending">PENDIENTE</span>`;
+        const ui = ESTADOS_UI[u.estado] || ESTADOS_UI.PENDIENTE;
+        const fechaBaja = u.fecha_baja ? new Date(u.fecha_baja).toLocaleDateString("es-AR") : "";
+        const tituloEstado = u.motivo_baja ? `${u.motivo_baja}${fechaBaja ? " (" + fechaBaja + ")" : ""}` : fechaBaja;
+        let badgeActivo = `<span class="badge ${ui.badge}" style="${ui.estilo || ""}" title="${esc(tituloEstado)}">${ui.texto}</span>`;
+        if (u.motivo_baja) badgeActivo += `<br><span style="font-size:11px; color:#888;">${esc(u.motivo_baja)}</span>`;
+        if (u.estado === "BAJA") tr.style.opacity = "0.6";
 
-        let btnEstado;
-        if (inactivo) {
-            btnEstado = `<button class="btn-action btn-approve" style="margin-right:5px;" onclick="darDeAlta(${u.id})">Dar de Alta</button>`;
-        } else if (u.activo) {
-            btnEstado = `<button class="btn-action" style="background:#dc3545; color:white; margin-right:5px;" onclick="darDeBaja(${u.id})">Dar de Baja</button>`;
-        } else {
-            btnEstado = `<button class="btn-action btn-approve" style="margin-right:5px;" onclick="aprobarUsuario(${u.id})">Aprobar</button>`;
-        }
+        const btnEstado = botonesEstado(u);
         const btnModificar = `<button class="btn-action" style="background:#8ed1d4; color:#1a3644;" onclick="abrirEdicion(${u.id})">Modificar</button>`;
-        const btnReset = `<button class="btn-mini" style="background: #ffc107; color: black; border: none; padding: 7px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 5px;" onclick="resetearClave(${u.id})">🔑 Reset Clave</button>`;
+        const btnReset = u.estado === "BAJA" ? "" : `<button class="btn-mini" style="background: #ffc107; color: black; border: none; padding: 7px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 5px;" onclick="resetearClave(${u.id})">🔑 Reset Clave</button>`;
 
         const listaRoles = u.roles ? u.roles.split(',') : [];
         let badgesRoles = '';
-        
+
         // ✨ FILTRO MÁGICO: Solo mostramos los roles que NO tengan un guion bajo (_)
         const rolesPrincipales = listaRoles.filter(r => !r.includes('_'));
-        
+
         rolesPrincipales.forEach(r => {
             let bg = r === 'Administrador' ? '#ffcc00' : '#e0e6e8';
             let txt = r === 'Administrador' ? '#0b3a47' : '#333';
             // Le damos un toque visual especial a "Operador" si quieres, o queda estándar
             if (r === 'Operador') { bg = '#f8f9fa'; txt = '#6c757d'; }
-            
-            badgesRoles += `<span style="background:${bg}; color:${txt}; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block; margin-bottom:4px;">${r}</span>`;
+
+            badgesRoles += `<span style="background:${bg}; color:${txt}; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold; margin-right:4px; display:inline-block; margin-bottom:4px;">${esc(r)}</span>`;
         });
 
-        const sectorHtml = u.sector ? `<span style="background-color: ${u.sector.color || '#1a3644'}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${u.sector.nombre}</span>` : '<span style="color: #999; font-size: 11px; font-style: italic;">N/A</span>';
-        const puestoTexto = u.puesto ? `<br><span style="font-size:11px; color:#58a598; font-weight:bold;">${u.puesto}</span>` : '';
+        const sectorHtml = u.sector ? `<span style="background-color: ${esc(u.sector.color || '#1a3644')}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${esc(u.sector.nombre)}</span>` : '<span style="color: #999; font-size: 11px; font-style: italic;">N/A</span>';
+        const puestoTexto = u.puesto ? `<br><span style="font-size:11px; color:#58a598; font-weight:bold;">${esc(u.puesto)}</span>` : '';
 
-        const inicialesTabla = ((u.nombre || '?')[0] + (u.apellido || '?')[0]).toUpperCase();
+        const inicialesTabla = esc(((u.nombre || '?')[0] + (u.apellido || '?')[0]).toUpperCase());
         const avatarTabla = u.foto
-            ? `<img src="${u.foto}" alt="foto" style="width:34px; height:34px; border-radius:50%; object-fit:cover; flex-shrink:0; margin-right:10px;">`
+            ? `<img src="${esc(u.foto)}" alt="foto" style="width:34px; height:34px; border-radius:50%; object-fit:cover; flex-shrink:0; margin-right:10px;">`
             : `<span style="width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1a3644; color:#fff; font-size:13px; font-weight:bold; flex-shrink:0; margin-right:10px;">${inicialesTabla}</span>`;
 
         tr.innerHTML = `
-            <td><div style="display:flex; align-items:center;">${avatarTabla}<div><strong>${u.apellido}, ${u.nombre}</strong><br><span style="font-size:12px; color:#666;">${u.email}</span></div></div></td>
-            <td>${u.cuil}</td>
-            <td><strong>${u.reparticion}</strong>${puestoTexto}</td>
+            <td><div style="display:flex; align-items:center;">${avatarTabla}<div><strong>${esc(u.apellido)}, ${esc(u.nombre)}</strong><br><span style="font-size:12px; color:#666;">${esc(u.email)}</span></div></div></td>
+            <td>${esc(u.cuil)}</td>
+            <td><strong>${esc(u.reparticion)}</strong>${puestoTexto}</td>
             <td>${sectorHtml}</td>
             <td>${badgesRoles}</td>
             <td>${badgeActivo}</td>
@@ -117,40 +156,116 @@ function renderizarTabla() {
     });
 }
 
-async function aprobarUsuario(id) {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${API_URL}/admin/usuarios/${id}/aprobar`, { method: "PUT", headers: { "Authorization": `Bearer ${token}` } });
-    if (res.ok) cargarUsuarios(); 
+function nombreDe(id) {
+    const u = usuariosGlobales.find(x => x.id === id);
+    return u ? `${u.apellido}, ${u.nombre}` : `#${id}`;
 }
 
-async function darDeBaja(id) {
-    const usuario = usuariosGlobales.find(u => u.id === id);
-    const nombre = usuario ? `${usuario.apellido}, ${usuario.nombre}` : id;
-    if (!confirm(`¿Estás seguro de dar de baja (inhabilitar) al usuario "${nombre}"? Podrás darlo de alta más adelante.`)) return;
+// Llama a un endpoint de cambio de estado y refresca la tabla
+async function cambiarEstadoUsuario(id, accion, body = null) {
     try {
-        const res = await fetch(`${API_URL}/admin/usuarios/${id}/baja`, { method: "PUT", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
-        if (res.ok) { const data = await res.json(); alert("✅ " + data.mensaje); cargarUsuarios(); }
-        else { const error = await res.json(); alert("❌ Error: " + (error.detail || "No se pudo dar de baja")); }
-    } catch (error) { alert("❌ Error de conexión al dar de baja."); }
+        const opciones = { method: "PUT", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } };
+        if (body) {
+            opciones.headers["Content-Type"] = "application/json";
+            opciones.body = JSON.stringify(body);
+        }
+        const res = await fetch(`${API_URL}/admin/usuarios/${id}/${accion}`, opciones);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { alert("❌ Error: " + (data.detail || "No se pudo completar la operación")); return null; }
+        cargarUsuarios();
+        return data;
+    } catch (error) { alert("❌ Error de conexión con el servidor."); return null; }
+}
+
+async function aprobarUsuario(id) {
+    if (await cambiarEstadoUsuario(id, "aprobar")) alert(`✅ ${nombreDe(id)} aprobado.`);
+}
+
+async function rechazarUsuario(id) {
+    const motivo = prompt(`Rechazar la solicitud de "${nombreDe(id)}".\nMotivo (opcional):`);
+    if (motivo === null) return;
+    await cambiarEstadoUsuario(id, "rechazar", { motivo });
+}
+
+async function suspenderUsuario(id) {
+    const motivo = prompt(`Suspender a "${nombreDe(id)}".\nNo podrá ingresar al sistema, pero conserva sus bienes, puesto y roles.\n\nMotivo (opcional, ej: licencia):`);
+    if (motivo === null) return;
+    const data = await cambiarEstadoUsuario(id, "suspender", { motivo });
+    if (data) alert("✅ " + data.mensaje);
 }
 
 async function darDeAlta(id) {
-    const usuario = usuariosGlobales.find(u => u.id === id);
-    const nombre = usuario ? `${usuario.apellido}, ${usuario.nombre}` : id;
-    if (!confirm(`¿Dar de alta (reactivar) al usuario "${nombre}"?`)) return;
+    const u = usuariosGlobales.find(x => x.id === id);
+    const aviso = u && u.estado === "BAJA" ? "\n\nLos bienes y el puesto que se liberaron con la baja NO se reasignan automáticamente." : "";
+    if (!confirm(`¿Reactivar al usuario "${nombreDe(id)}"?${aviso}`)) return;
+    const data = await cambiarEstadoUsuario(id, "alta");
+    if (data) alert("✅ " + data.mensaje);
+}
+
+// --- BAJA DEFINITIVA (modal con lo que se libera) ---
+async function abrirModalBaja(id) {
+    document.getElementById("baja-id").value = id;
+    document.getElementById("baja-nombre").textContent = nombreDe(id);
+    document.getElementById("baja-motivo-tipo").value = "Renuncia";
+    document.getElementById("baja-motivo-otro").value = "";
+    document.getElementById("baja-motivo-otro").style.display = "none";
+    document.getElementById("baja-liberar-bienes").checked = true;
+    document.getElementById("baja-liberar-label").style.display = "none";
+    const resumen = document.getElementById("baja-resumen");
+    resumen.textContent = "Cargando...";
+    document.getElementById("modal-backdrop-baja").style.display = "block";
+    document.getElementById("modal-baja").style.display = "block";
+
     try {
-        const res = await fetch(`${API_URL}/admin/usuarios/${id}/alta`, { method: "PUT", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
-        if (res.ok) { const data = await res.json(); alert("✅ " + data.mensaje); cargarUsuarios(); }
-        else { const error = await res.json(); alert("❌ Error: " + (error.detail || "No se pudo dar de alta")); }
-    } catch (error) { alert("❌ Error de conexión al dar de alta."); }
+        const res = await fetch(`${API_URL}/admin/usuarios/${id}/resumen-baja`, { headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
+        if (!res.ok) throw new Error();
+        const r = await res.json();
+        const items = [];
+        items.push(r.puesto ? `🪑 Se libera el puesto <strong>${esc(r.puesto)}</strong>` : "🪑 No tiene puesto asignado");
+        if (r.tickets_asignados) items.push(`🎫 ${r.tickets_asignados} ticket(s) abiertos vuelven a la cola de la Mesa de Ayuda`);
+        if (r.bienes.length) {
+            items.push(`📦 Tiene ${r.bienes.length} bien(es) asignado(s):<ul style="margin:4px 0 0 0; padding-left:18px;">` +
+                r.bienes.map(b => `<li>${esc(b.numero_inventario)}${b.descripcion ? " — " + esc(b.descripcion) : ""}</li>`).join("") + "</ul>");
+            document.getElementById("baja-liberar-label").style.display = "block";
+        } else {
+            items.push("📦 No tiene bienes patrimoniales asignados");
+        }
+        resumen.innerHTML = items.join("<br>");
+    } catch (e) {
+        resumen.textContent = "No se pudo obtener el detalle de lo asignado.";
+    }
+}
+
+function cerrarModalBaja() {
+    document.getElementById("modal-backdrop-baja").style.display = "none";
+    document.getElementById("modal-baja").style.display = "none";
+}
+
+async function confirmarBaja() {
+    const id = parseInt(document.getElementById("baja-id").value);
+    const tipo = document.getElementById("baja-motivo-tipo").value;
+    const otro = document.getElementById("baja-motivo-otro").value.trim();
+    if (tipo === "Otro" && !otro) { alert("Indicá el detalle del motivo."); return; }
+    const motivo = tipo === "Otro" ? otro : tipo;
+    const liberar_bienes = document.getElementById("baja-liberar-bienes").checked;
+
+    const data = await cambiarEstadoUsuario(id, "baja", { motivo, liberar_bienes });
+    if (!data) return;
+    cerrarModalBaja();
+    const detalle = [];
+    if (data.puesto_liberado) detalle.push(`puesto ${data.puesto_liberado} liberado`);
+    if (data.bienes_liberados) detalle.push(`${data.bienes_liberados} bien(es) liberado(s)`);
+    if (data.tickets_liberados) detalle.push(`${data.tickets_liberados} ticket(s) devueltos a la cola`);
+    alert("✅ " + data.mensaje + (detalle.length ? "\n• " + detalle.join("\n• ") : ""));
 }
 
 async function resetearClave(usuarioId) {
-    if (!confirm("¿Estás seguro de que deseas resetear la clave de este usuario a '12345678'?")) return;
+    if (!confirm(`¿Generar una nueva contraseña aleatoria para "${nombreDe(usuarioId)}"?`)) return;
     try {
         const res = await fetch(`/admin/usuarios/${usuarioId}/reset-password`, { method: "PUT", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" }});
-        if (res.ok) { const data = await res.json(); alert("✅ " + data.mensaje); } 
-        else { const error = await res.json(); alert("❌ Error: " + (error.detail || "No se pudo resetear la clave")); }
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) prompt(`✅ ${data.mensaje}\nCopiá la nueva contraseña y entregásela al usuario (no se vuelve a mostrar):`, data.nueva_clave || "");
+        else alert("❌ Error: " + (data.detail || "No se pudo resetear la clave"));
     } catch (error) { alert("❌ Error de conexión al intentar resetear la clave."); }
 }
 
@@ -164,7 +279,7 @@ async function importarUsuariosExcel(event) {
         const data = await res.json();
         if (res.ok) {
             alert(data.mensaje);
-            if (data.errores && data.errores.length > 0) alert("Atención: Hubo " + data.errores.length + " filas omitidas por duplicado.");
+            if (data.errores && data.errores.length > 0) alert("Atención: Hubo " + data.errores.length + " filas con errores:\n" + data.errores.join("\n"));
             cargarUsuarios(); 
             if (typeof cargarSectores === "function") cargarSectores(); 
         } else alert("❌ Error: " + (data.detail || "No se pudo importar el archivo."));
@@ -282,7 +397,8 @@ async function guardarEdicion(event) {
             cerrarEdicion(); 
             cargarUsuarios(); 
         } else { 
-            alert("Ocurrió un error al intentar modificar el usuario.");
+            const error = await res.json().catch(() => ({}));
+            alert("❌ " + (error.detail || "Ocurrió un error al intentar modificar el usuario."));
         }
     } catch (error) { 
         alert("Error de conexión con el servidor."); 
@@ -331,7 +447,9 @@ async function cargarAuditoria(pagina = 0) {
             "BAJA_PATRIMONIO": "#dc3545", "IMPORTAR_PATRIMONIO": "#0d6efd",
             "ASIGNAR_EQUIPO": "#6f42c1", "IMPORTAR_INFORMATICA": "#0d6efd",
             "GUARDAR_MAPA": "#20c997", "BORRAR_MAPA": "#dc3545",
-            "GENERAR_NOTA_SALIDA": "#6f42c1"
+            "GENERAR_NOTA_SALIDA": "#6f42c1",
+            "RECHAZAR_USUARIO": "#6c757d", "SUSPENDER_USUARIO": "#ffc107",
+            "REHABILITAR_USUARIO": "#198754", "BAJA_USUARIO": "#dc3545", "ALTA_USUARIO": "#198754"
         };
 
         logs.forEach(log => {

@@ -54,6 +54,9 @@ class UserResponse(BaseModel):
     puesto: Optional[str] = None
     activo: bool
     aprobado: bool = False
+    estado: str = "PENDIENTE"
+    fecha_baja: Optional[datetime] = None
+    motivo_baja: Optional[str] = None
     roles: str 
     sector_id: Optional[int] = None  # <-- Campo opcional agregado aquí
     sector: Optional[SectorResponse] = None # <-- Permite devolver el nombre del sector al frontend
@@ -61,6 +64,13 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SuspensionRequest(BaseModel):
+    motivo: Optional[str] = None
+
+class BajaRequest(BaseModel):
+    motivo: str
+    liberar_bienes: bool = True
 
 class FotoUpdate(BaseModel):
     foto: str
@@ -77,6 +87,7 @@ class PerfilResponse(BaseModel):
     sector: Optional[str] = None
     activo: bool = False
     aprobado: bool = False
+    estado: str = "PENDIENTE"
     fecha_creacion: Optional[datetime] = None
     foto: Optional[str] = None
     equipos_asignados: int = 0

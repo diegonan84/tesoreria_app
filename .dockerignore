@@ -1,0 +1,15 @@
+venv/
+.venv/
+.git/
+__pycache__/
+*.py[cod]
+*.rar
+.env
+.env.local
+*.log
+frontend/fotos/
+frontend/manuales/
+frontend/notas/
+tesoreria_app.rar
+.DS_Store
+Thumbs.db

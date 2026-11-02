@@ -24,11 +24,37 @@ class User(Base):
     sector_id = Column(Integer, ForeignKey("sectores.id"), nullable=True)
     sector = relationship("Sector", back_populates="usuarios")
     puesto = Column(String, nullable=True)
+    # `estado` es la fuente de verdad del ciclo de vida; `activo`/`aprobado` se mantienen
+    # sincronizados (ver aplicar_estado) porque muchos módulos filtran por User.activo.
+    estado = Column(String(20), default="PENDIENTE", nullable=False, server_default="PENDIENTE")
     activo = Column(Boolean, default=False)
     aprobado = Column(Boolean, default=False)
+    fecha_baja = Column(DateTime, nullable=True)
+    motivo_baja = Column(String(255), nullable=True)
     roles = Column(String, default="Operador")
     foto = Column(Text, nullable=True)
     tokens = relationship("PasswordResetToken", back_populates="user")
+
+
+# Estados del usuario:
+#   PENDIENTE  → se registró solo y espera aprobación de un administrador
+#   ACTIVO     → puede ingresar al sistema
+#   SUSPENDIDO → inhabilitado temporalmente (licencia, sanción, etc.); conserva bienes y puesto
+#   BAJA       → ya no pertenece al organismo; se libera su puesto y opcionalmente sus bienes
+ESTADOS_USUARIO = ("PENDIENTE", "ACTIVO", "SUSPENDIDO", "BAJA")
+
+
+def aplicar_estado(user: "User", estado: str, motivo: str = None):
+    """Cambia el estado del usuario manteniendo coherentes los flags legados."""
+    user.estado = estado
+    user.activo = estado == "ACTIVO"
+    user.aprobado = estado != "PENDIENTE"
+    if estado in ("SUSPENDIDO", "BAJA"):
+        user.fecha_baja = datetime.utcnow()
+        user.motivo_baja = motivo
+    else:
+        user.fecha_baja = None
+        user.motivo_baja = None
 
 class MapaGrid(Base):
     __tablename__ = "mapas_grid"

@@ -3,6 +3,7 @@ from sqlalchemy import cast, Integer, asc, desc, or_, and_, func
 from fastapi import HTTPException, status, UploadFile
 from datetime import datetime, timezone
 from .models import Patrimonio, PatrimonioHistorial
+from backend.modulos.usuarios.models import aplicar_estado
 from .schemas import PatrimonioCreate, PatrimonioUpdate
 from .repository import PatrimonioRepository, PatrimonioHistorialRepository
 from . import models, schemas
@@ -154,7 +155,7 @@ class PatrimonioService:
             if usuario.aprobado and not usuario.activo:
                 if not reactivar_desactualizados:
                     return False, False, False, True, False, usuario
-                usuario.activo = True
+                aplicar_estado(usuario, "ACTIVO")
                 datos_fila["usuario_id"] = usuario.id
                 datos_fila["usuario_destino"] = destino_texto
                 return True, False, False, False, True, usuario
