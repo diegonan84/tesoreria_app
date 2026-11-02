@@ -11,3 +11,4 @@ from backend.modulos.ayuda.models import ManualAyuda
 from backend.modulos.agenda.models import RecordatorioCalendario
 from backend.modulos.sistemas.models import NotaSalida
 from backend.modulos.tickets.models import Ticket, TicketComentario
+from backend.modulos.patrimonio.models import Patrimonio, PatrimonioHistorial, PatrimonioConcepto, PatrimonioImportacion, Destino

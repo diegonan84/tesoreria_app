@@ -33,3 +33,5 @@ frontend/notas/
 
 # Copias de seguridad
 *.rar
+# Backups de la base
+backups/
