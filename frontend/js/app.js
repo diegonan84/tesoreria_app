@@ -1,7 +1,7 @@
 // ============================================================================
 // app.js - NÚCLEO Y CONFIGURACIÓN GLOBAL
 // ============================================================================
-const API_URL = "http://localhost:8000";
+const API_URL = window.location.origin; // mismo servidor que sirve la página (local o Proxmox)
 
 /* ============================================================================
    CATÁLOGO DE PERMISOS (módulos y páginas a las que se puede entrar)

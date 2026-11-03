@@ -4,7 +4,7 @@
 const ChatHistorial = (function() {
 
     const token = localStorage.getItem('token');
-    const API = 'http://localhost:8000';
+    const API = window.location.origin;
     let miUsuarioId = token ? decodificarToken(token).id : null;
 
     let conversaciones = [];
