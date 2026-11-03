@@ -7,6 +7,8 @@ Uso (en el servidor):
 """
 from getpass import getpass
 
+from email_validator import validate_email, EmailNotValidError
+
 from backend import models, utils
 from backend.database import SessionLocal
 
@@ -22,6 +24,10 @@ try:
         raise SystemExit("Las contraseñas no coinciden.")
     if not all([nombre, apellido, email, cuil, reparticion, clave]):
         raise SystemExit("Todos los datos son obligatorios.")
+    try:
+        email = validate_email(email, check_deliverability=False).normalized
+    except EmailNotValidError as e:
+        raise SystemExit(f"Email inválido: {e}")
     if db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first():
         raise SystemExit("Ya existe un usuario con ese email o CUIL.")
 
