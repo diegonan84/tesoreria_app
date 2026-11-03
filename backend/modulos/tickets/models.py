@@ -19,7 +19,11 @@ class Ticket(Base):
     # Equipo afectado (opcional): se cruza con patrimonio.numero_inventario
     numero_inventario = Column(String, nullable=True)
 
-    solicitante_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    # Null cuando el ticket se carga desde el formulario público (sin login)
+    solicitante_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    # Datos del solicitante para tickets del formulario público
+    solicitante_nombre = Column(String(120), nullable=True)
+    solicitante_puesto = Column(String(120), nullable=True)
     asignado_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
 
     fecha_creacion = Column(DateTime, default=datetime.utcnow, index=True)
