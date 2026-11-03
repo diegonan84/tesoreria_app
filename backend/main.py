@@ -48,6 +48,7 @@ app.include_router(sistemas_router.router, tags=["Sistemas"])
 app.include_router(ayuda_router.router, tags=["Ayuda"])
 app.include_router(agenda_router.router, tags=["Agenda"])
 app.include_router(tickets_router.router, tags=["Mesa de Ayuda"])
+app.include_router(tickets_router.router_publico)
 
 
 # --------------------------------------------------
@@ -104,6 +105,10 @@ def serve_notificaciones(): return FileResponse("frontend/vistas/notificaciones.
 
 @app.get("/tickets")
 def serve_tickets(): return FileResponse("frontend/vistas/tickets/tickets.html")
+
+# Formulario público de tickets (no requiere login)
+@app.get("/pedido-soporte")
+def serve_pedido_soporte(): return FileResponse("frontend/vistas/tickets/pedido_soporte.html")
 
 @app.get("/control-fichadas")
 def serve_control_fichadas(): return FileResponse("frontend/vistas/control_fichadas.html")

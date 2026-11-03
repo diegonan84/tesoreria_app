@@ -6,6 +6,9 @@ Mesa de Ayuda (Tickets)
   cambia estado/prioridad y puede dejar notas internas.
 """
 import io
+import re
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -25,6 +28,8 @@ from . import schemas
 from .models import Ticket, TicketComentario
 
 router = APIRouter(prefix="/api/tickets", tags=["Mesa de Ayuda"])
+# Endpoints sin login para el formulario público (/pedido-soporte)
+router_publico = APIRouter(prefix="/api/tickets-publico", tags=["Mesa de Ayuda (público)"])
 
 ROLES_SOPORTE = {"Soporte", "Administrador"}
 ESTADOS_FINALES = {"Resuelto", "Cerrado"}
@@ -61,15 +66,27 @@ def _mini(u: Optional[User]):
     )
 
 
+def _solicitante(t: Ticket):
+    """Usuario del sistema o, si vino del formulario público, correo + puesto cargados."""
+    if t.solicitante:
+        return _mini(t.solicitante)
+    if t.solicitante_email:
+        return schemas.UsuarioMini(id=None, nombre=t.solicitante_email,
+                                   sector=f"Puesto {t.solicitante_puesto}" if t.solicitante_puesto else None)
+    return None
+
+
 def _serializar(t: Ticket, ver_internos: bool) -> schemas.TicketResponse:
     visibles = [c for c in t.comentarios if ver_internos or not c.es_interno]
     return schemas.TicketResponse(
         id=t.id, numero=t.numero, titulo=t.titulo, descripcion=t.descripcion,
         categoria=t.categoria, prioridad=t.prioridad, estado=t.estado,
         numero_inventario=t.numero_inventario,
+        solicitante_puesto=t.solicitante_puesto,
+        origen="sistema" if t.solicitante_id else "formulario_publico",
         fecha_creacion=t.fecha_creacion, fecha_actualizacion=t.fecha_actualizacion,
         fecha_cierre=t.fecha_cierre,
-        solicitante=_mini(t.solicitante), asignado=_mini(t.asignado),
+        solicitante=_solicitante(t), asignado=_mini(t.asignado),
         cantidad_comentarios=len([c for c in visibles if c.tipo == "comentario"]),
     )
 
@@ -194,6 +211,7 @@ def _consulta_listado(db: Session, usuario: dict, alcance: str, estado: Optional
         consulta = consulta.filter(or_(
             Ticket.numero.ilike(patron), Ticket.titulo.ilike(patron),
             Ticket.descripcion.ilike(patron), Ticket.numero_inventario.ilike(patron),
+            Ticket.solicitante_email.ilike(patron), Ticket.solicitante_puesto.ilike(patron),
         ))
     return consulta.order_by(Ticket.fecha_creacion.desc(), Ticket.id.desc())
 
@@ -269,8 +287,9 @@ def exportar_tickets(
         "Categoría": t.categoria,
         "Prioridad": t.prioridad,
         "Estado": t.estado,
-        "Solicitante": f"{t.solicitante.nombre} {t.solicitante.apellido}" if t.solicitante else "",
+        "Solicitante": f"{t.solicitante.nombre} {t.solicitante.apellido}" if t.solicitante else (t.solicitante_email or ""),
         "Sector": t.solicitante.sector.nombre if t.solicitante and t.solicitante.sector else "",
+        "Puesto": t.solicitante_puesto or "",
         "Asignado a": f"{t.asignado.nombre} {t.asignado.apellido}" if t.asignado else "",
         "Nº Inventario": t.numero_inventario or "",
         "Cierre": local(t.fecha_cierre),
@@ -430,3 +449,73 @@ def comentar_ticket(
     autor = db.query(User).filter(User.id == usuario.get("id")).first()
     return schemas.ComentarioResponse(id=c.id, texto=c.texto, tipo=c.tipo, es_interno=c.es_interno,
                                       fecha=c.fecha, usuario=_mini(autor))
+
+
+# ---------------------------------------------------------------------------
+# Formulario público (sin login)
+# ---------------------------------------------------------------------------
+_LIMITE_PUBLICO = 5             # tickets por IP...
+_VENTANA_PUBLICO = 10 * 60      # ...cada 10 minutos
+_envios_por_ip: dict = defaultdict(deque)
+_RE_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _controlar_frecuencia(ip: str):
+    ahora = time.monotonic()
+    envios = _envios_por_ip[ip]
+    while envios and ahora - envios[0] > _VENTANA_PUBLICO:
+        envios.popleft()
+    if len(envios) >= _LIMITE_PUBLICO:
+        raise HTTPException(status_code=429, detail="Enviaste varios tickets seguidos. Esperá unos minutos y probá de nuevo.")
+    envios.append(ahora)
+
+
+@router_publico.get("/catalogos")
+def catalogos_publicos(db: Session = Depends(get_db)):
+    """Categorías y puestos conocidos (de Patrimonio) para sugerir en el formulario."""
+    puestos = [
+        p for (p,) in db.query(Patrimonio.puesto)
+        .filter(Patrimonio.puesto.isnot(None), Patrimonio.puesto != "")
+        .distinct().order_by(Patrimonio.puesto).all()
+    ]
+    return {"categorias": schemas.CATEGORIAS, "puestos": puestos}
+
+
+@router_publico.post("")
+def crear_ticket_publico(datos: schemas.TicketPublicoCreate, request: Request, db: Session = Depends(get_db)):
+    if datos.web:  # honeypot: lo completó un bot
+        raise HTTPException(status_code=400, detail="No se pudo enviar el ticket.")
+
+    email = datos.email.strip().lower()
+    puesto = datos.puesto.strip()
+    titulo = datos.titulo.strip()
+    descripcion = datos.descripcion.strip()
+    if not _RE_EMAIL.match(email):
+        raise HTTPException(status_code=400, detail="Ingresá un correo electrónico válido.")
+    if not puesto:
+        raise HTTPException(status_code=400, detail="Ingresá tu puesto.")
+    if len(titulo) < 3 or len(descripcion) < 3:
+        raise HTTPException(status_code=400, detail="Completá el asunto y la descripción.")
+
+    ip = request.client.host if request.client else "desconocida"
+    _controlar_frecuencia(ip)
+
+    t = Ticket(
+        titulo=titulo,
+        descripcion=descripcion,
+        categoria=datos.categoria,
+        prioridad="Media",
+        solicitante_id=None,
+        solicitante_email=email,
+        solicitante_puesto=puesto,
+        estado="Abierto",
+    )
+    db.add(t)
+    db.flush()
+    t.numero = f"TK-{t.id:05d}"
+    t.comentarios.append(TicketComentario(
+        usuario_id=None, tipo="sistema",
+        texto=f"Ticket creado desde el formulario público por {email} (puesto {puesto}, IP {ip}).",
+    ))
+    db.commit()
+    return {"numero": t.numero}
