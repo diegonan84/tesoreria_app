@@ -35,3 +35,6 @@ frontend/notas/
 *.rar
 # Backups de la base
 backups/
+
+# Paquete de despliegue (git archive)
+tesoreria.tar.gz
