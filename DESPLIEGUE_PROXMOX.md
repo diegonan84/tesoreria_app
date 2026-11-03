@@ -1,14 +1,14 @@
 # Despliegue en Proxmox (Docker)
 
-El sistema corre en una VM Debian 12 con Docker: un contenedor para la app (FastAPI) y otro
+El sistema corre en una VM Debian 13 con Docker: un contenedor para la app (FastAPI) y otro
 para PostgreSQL 16. Los datos quedan en volúmenes de Docker (`pgdata`, fotos, manuales, notas).
 
 ## 1. Crear la VM en Proxmox
 
-1. Descargar la ISO de Debian 12 "netinst" y subirla a Proxmox: *local → ISO Images → Upload*
+1. Descargar la ISO de Debian 13 "netinst" y subirla a Proxmox: *local → ISO Images → Upload*
    (o *Download from URL*: `https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/`).
 2. *Create VM*:
-   - **OS**: la ISO de Debian 12.
+   - **OS**: la ISO de Debian 13.
    - **Disco**: 32 GB o más.
    - **CPU**: 2 cores. **Memoria**: 4096 MB.
    - **Red**: `vmbr0` (la misma red que las PCs de la oficina).

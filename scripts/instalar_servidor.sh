@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instala Docker y levanta el sistema en una VM Debian 12 recién creada (Proxmox).
+# Instala Docker y levanta el sistema en una VM Debian 13 recién creada (Proxmox).
 # Ejecutar como root dentro de la carpeta del proyecto, ej:
 #   cd /opt/tesoreria && bash scripts/instalar_servidor.sh
 set -euo pipefail
