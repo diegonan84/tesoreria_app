@@ -22,7 +22,7 @@ class Ticket(Base):
     # Null cuando el ticket se carga desde el formulario público (sin login)
     solicitante_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
     # Datos del solicitante para tickets del formulario público
-    solicitante_nombre = Column(String(120), nullable=True)
+    solicitante_email = Column(String(160), nullable=True)
     solicitante_puesto = Column(String(120), nullable=True)
     asignado_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
 

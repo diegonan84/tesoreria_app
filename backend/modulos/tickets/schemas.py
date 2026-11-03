@@ -20,8 +20,8 @@ class TicketCreate(BaseModel):
 
 
 class TicketPublicoCreate(BaseModel):
-    """Alta desde el formulario público (sin login). Nombre y puesto son obligatorios."""
-    nombre: str = Field(..., min_length=2, max_length=120)
+    """Alta desde el formulario público (sin login). Correo y puesto son obligatorios."""
+    email: str = Field(..., min_length=5, max_length=160)
     puesto: str = Field(..., min_length=1, max_length=120)
     titulo: str = Field(..., min_length=3, max_length=150)
     descripcion: str = Field(..., min_length=3, max_length=4000)

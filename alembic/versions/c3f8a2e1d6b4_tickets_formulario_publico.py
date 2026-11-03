@@ -1,4 +1,4 @@
-"""tickets: formulario público (nombre y puesto del solicitante, solicitante_id opcional)
+"""tickets: formulario público (correo y puesto del solicitante, solicitante_id opcional)
 
 Revision ID: c3f8a2e1d6b4
 Revises: b7e2c4d9a1f3
@@ -15,7 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('tickets', sa.Column('solicitante_nombre', sa.String(120), nullable=True))
+    op.add_column('tickets', sa.Column('solicitante_email', sa.String(160), nullable=True))
     op.add_column('tickets', sa.Column('solicitante_puesto', sa.String(120), nullable=True))
     op.alter_column('tickets', 'solicitante_id', existing_type=sa.Integer(), nullable=True)
 
@@ -23,4 +23,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.alter_column('tickets', 'solicitante_id', existing_type=sa.Integer(), nullable=False)
     op.drop_column('tickets', 'solicitante_puesto')
-    op.drop_column('tickets', 'solicitante_nombre')
+    op.drop_column('tickets', 'solicitante_email')

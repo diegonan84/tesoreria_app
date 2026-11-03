@@ -6,6 +6,7 @@ Mesa de Ayuda (Tickets)
   cambia estado/prioridad y puede dejar notas internas.
 """
 import io
+import re
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
@@ -66,11 +67,11 @@ def _mini(u: Optional[User]):
 
 
 def _solicitante(t: Ticket):
-    """Usuario del sistema o, si vino del formulario público, nombre + puesto cargados."""
+    """Usuario del sistema o, si vino del formulario público, correo + puesto cargados."""
     if t.solicitante:
         return _mini(t.solicitante)
-    if t.solicitante_nombre:
-        return schemas.UsuarioMini(id=None, nombre=t.solicitante_nombre,
+    if t.solicitante_email:
+        return schemas.UsuarioMini(id=None, nombre=t.solicitante_email,
                                    sector=f"Puesto {t.solicitante_puesto}" if t.solicitante_puesto else None)
     return None
 
@@ -210,7 +211,7 @@ def _consulta_listado(db: Session, usuario: dict, alcance: str, estado: Optional
         consulta = consulta.filter(or_(
             Ticket.numero.ilike(patron), Ticket.titulo.ilike(patron),
             Ticket.descripcion.ilike(patron), Ticket.numero_inventario.ilike(patron),
-            Ticket.solicitante_nombre.ilike(patron), Ticket.solicitante_puesto.ilike(patron),
+            Ticket.solicitante_email.ilike(patron), Ticket.solicitante_puesto.ilike(patron),
         ))
     return consulta.order_by(Ticket.fecha_creacion.desc(), Ticket.id.desc())
 
@@ -286,7 +287,7 @@ def exportar_tickets(
         "Categoría": t.categoria,
         "Prioridad": t.prioridad,
         "Estado": t.estado,
-        "Solicitante": f"{t.solicitante.nombre} {t.solicitante.apellido}" if t.solicitante else (t.solicitante_nombre or ""),
+        "Solicitante": f"{t.solicitante.nombre} {t.solicitante.apellido}" if t.solicitante else (t.solicitante_email or ""),
         "Sector": t.solicitante.sector.nombre if t.solicitante and t.solicitante.sector else "",
         "Puesto": t.solicitante_puesto or "",
         "Asignado a": f"{t.asignado.nombre} {t.asignado.apellido}" if t.asignado else "",
@@ -456,6 +457,7 @@ def comentar_ticket(
 _LIMITE_PUBLICO = 5             # tickets por IP...
 _VENTANA_PUBLICO = 10 * 60      # ...cada 10 minutos
 _envios_por_ip: dict = defaultdict(deque)
+_RE_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _controlar_frecuencia(ip: str):
@@ -484,12 +486,12 @@ def crear_ticket_publico(datos: schemas.TicketPublicoCreate, request: Request, d
     if datos.web:  # honeypot: lo completó un bot
         raise HTTPException(status_code=400, detail="No se pudo enviar el ticket.")
 
-    nombre = datos.nombre.strip()
+    email = datos.email.strip().lower()
     puesto = datos.puesto.strip()
     titulo = datos.titulo.strip()
     descripcion = datos.descripcion.strip()
-    if len(nombre) < 2:
-        raise HTTPException(status_code=400, detail="Ingresá tu nombre.")
+    if not _RE_EMAIL.match(email):
+        raise HTTPException(status_code=400, detail="Ingresá un correo electrónico válido.")
     if not puesto:
         raise HTTPException(status_code=400, detail="Ingresá tu puesto.")
     if len(titulo) < 3 or len(descripcion) < 3:
@@ -504,7 +506,7 @@ def crear_ticket_publico(datos: schemas.TicketPublicoCreate, request: Request, d
         categoria=datos.categoria,
         prioridad="Media",
         solicitante_id=None,
-        solicitante_nombre=nombre,
+        solicitante_email=email,
         solicitante_puesto=puesto,
         estado="Abierto",
     )
@@ -513,7 +515,7 @@ def crear_ticket_publico(datos: schemas.TicketPublicoCreate, request: Request, d
     t.numero = f"TK-{t.id:05d}"
     t.comentarios.append(TicketComentario(
         usuario_id=None, tipo="sistema",
-        texto=f"Ticket creado desde el formulario público por {nombre} (puesto {puesto}, IP {ip}).",
+        texto=f"Ticket creado desde el formulario público por {email} (puesto {puesto}, IP {ip}).",
     ))
     db.commit()
     return {"numero": t.numero}

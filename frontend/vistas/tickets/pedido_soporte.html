@@ -72,8 +72,8 @@
             <form id="form-ticket" novalidate>
                 <div class="fila2">
                     <div>
-                        <label for="f-nombre">Nombre y apellido <span class="req">*</span></label>
-                        <input type="text" id="f-nombre" required minlength="2" maxlength="120" autocomplete="name" placeholder="Ej: María Gómez">
+                        <label for="f-email">Correo electrónico <span class="req">*</span></label>
+                        <input type="email" id="f-email" required maxlength="160" autocomplete="email" placeholder="Ej: mgomez@correo.gob.ar">
                     </div>
                     <div>
                         <label for="f-puesto">Puesto <span class="req">*</span></label>
@@ -140,14 +140,14 @@
             ev.preventDefault();
             mostrarError("");
             const datos = {
-                nombre: $("f-nombre").value.trim(),
+                email: $("f-email").value.trim(),
                 puesto: $("f-puesto").value.trim(),
                 titulo: $("f-titulo").value.trim(),
                 categoria: $("f-categoria").value,
                 descripcion: $("f-descripcion").value.trim(),
                 web: $("f-web").value,
             };
-            if (datos.nombre.length < 2) { mostrarError("Ingresá tu nombre."); $("f-nombre").focus(); return; }
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(datos.email)) { mostrarError("Ingresá un correo electrónico válido."); $("f-email").focus(); return; }
             if (!datos.puesto) { mostrarError("Ingresá tu puesto."); $("f-puesto").focus(); return; }
             if (datos.titulo.length < 3) { mostrarError("Completá el asunto (mínimo 3 caracteres)."); $("f-titulo").focus(); return; }
             if (datos.descripcion.length < 3) { mostrarError("Completá la descripción."); $("f-descripcion").focus(); return; }
@@ -166,8 +166,8 @@
                     mostrarError(det);
                     return;
                 }
-                // Recordamos nombre y puesto para el próximo pedido
-                try { localStorage.setItem("pedido_soporte_persona", JSON.stringify({ nombre: datos.nombre, puesto: datos.puesto })); } catch (e) {}
+                // Recordamos correo y puesto para el próximo pedido
+                try { localStorage.setItem("pedido_soporte_persona", JSON.stringify({ email: datos.email, puesto: datos.puesto })); } catch (e) {}
                 $("numero-ticket").textContent = res.numero;
                 $("vista-form").style.display = "none";
                 $("vista-exito").style.display = "block";
@@ -190,7 +190,7 @@
         (function precargarPersona() {
             try {
                 const p = JSON.parse(localStorage.getItem("pedido_soporte_persona") || "null");
-                if (p) { $("f-nombre").value = p.nombre || ""; $("f-puesto").value = p.puesto || ""; }
+                if (p) { $("f-email").value = p.email || ""; $("f-puesto").value = p.puesto || ""; }
             } catch (e) {}
         })();
         cargarCatalogos();
