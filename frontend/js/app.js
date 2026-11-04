@@ -7,7 +7,7 @@ const API_URL = window.location.origin; // mismo servidor que sirve la página (
    CATÁLOGO DE PERMISOS (módulos y páginas a las que se puede entrar)
    Lo usan el sidebar, el control de acceso por ruta y el formulario de Usuarios.
    El código de módulo y el de cada página se guardan en User.roles.
-   Mesa de Ayuda, Ayuda y Mi Perfil son de acceso básico (Operador).
+   Ayuda y Mi Perfil son de acceso básico (Operador); Mesa de Ayuda se habilita por usuario.
    ============================================================================ */
 const CATALOGO_PERMISOS = [
     { codigo: "Calendario", nombre: "Calendario", icono: "📅", paginas: [
@@ -49,12 +49,20 @@ const CATALOGO_PERMISOS = [
         { codigo: "Sis_Aplicaciones", nombre: "Gestión de Aplicaciones", rutas: ["/sistemas"] },
         { codigo: "Sis_Permisos", nombre: "Permisos y Accesos", rutas: [] },
     ]},
+    // No viene tildado por defecto: se habilita por usuario. El rol "Soporte" también da acceso.
+    { codigo: "Tickets", nombre: "Mesa de Ayuda", icono: "🎫", paginas: [
+        { codigo: "Tick_Tickets", nombre: "Tickets (crear y consultar)", rutas: ["/tickets"] },
+    ]},
 ];
+
+// Roles que dan acceso a una página aunque no esté tildada en el árbol
+const PERMISOS_IMPLICITOS = { Tick_Tickets: ["Soporte"] };
 
 // ¿El usuario (lista de roles) puede entrar a esta página/módulo?
 // Compatibilidad: si tiene el módulo pero ninguna página del módulo tildada, ve todas.
 function tienePermiso(roles, codigo) {
     if (roles.includes("Administrador") || roles.includes(codigo)) return true;
+    if ((PERMISOS_IMPLICITOS[codigo] || []).some(r => roles.includes(r))) return true;
     const modulo = CATALOGO_PERMISOS.find(m => m.paginas.some(p => p.codigo === codigo));
     return !!modulo && roles.includes(modulo.codigo) && !modulo.paginas.some(p => roles.includes(p.codigo));
 }
