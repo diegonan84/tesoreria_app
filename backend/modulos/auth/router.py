@@ -23,6 +23,10 @@ from backend.modulos.auditoria.service import obtener_nombre_pc_cliente, vincula
 
 router = APIRouter()
 
+# Clave inicial de usuarios importados y de los reseteos hechos por un admin.
+# Siempre va acompañada de debe_cambiar_clave=True, que obliga a cambiarla al ingresar.
+CLAVE_POR_DEFECTO = "123456"
+
 def generar_clave_aleatoria(longitud: int = 12) -> str:
     """Genera una contraseña aleatoria segura con mayúsculas, minúsculas, dígitos y símbolos."""
     chars = string.ascii_letters + string.digits + "!@#$%&*"
@@ -122,8 +126,8 @@ def login(req: schemas.UserLogin, request: Request, db: Session = Depends(databa
         "roles": user.roles.split(",") if user.roles else [],
         # ✨ EL FIX: Cambiamos 'usuario' por 'user'
         "sector": user.sector.nombre if user.sector else "Sin Sector"
-    })  
-    return {"access_token": access_token, "token_type": "bearer"}
+    })
+    return {"access_token": access_token, "token_type": "bearer", "debe_cambiar_clave": bool(user.debe_cambiar_clave)}
 
 @router.post("/logout")
 def registrar_logout(credentials: HTTPAuthorizationCredentials = Security(security), db: Session = Depends(database.get_db)):
@@ -204,12 +208,10 @@ def resetear_clave_admin(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # 2. Generamos una contraseña aleatoria segura
-    nueva_clave = generar_clave_aleatoria()
-    nueva_clave_hash = utils.get_password_hash(nueva_clave)
-    
-    # 3. Asignamos la nueva clave y guardamos
-    usuario.password_hash = nueva_clave_hash
+    # 2. Volvemos a la clave por defecto; el usuario está obligado a cambiarla al ingresar
+    nueva_clave = CLAVE_POR_DEFECTO
+    usuario.password_hash = utils.get_password_hash(nueva_clave)
+    usuario.debe_cambiar_clave = True
     db.commit()
 
     registrar_evento(
@@ -301,8 +303,7 @@ async def importar_usuarios_excel(
             # Procesamos el Rol: siempre suma los permisos por defecto (Operador, Chat y Calendario)
             roles = models.roles_con_defecto(str(row["Rol"]).strip())
 
-            # 4. Insertamos el usuario con contraseña aleatoria
-            clave_usuario = generar_clave_aleatoria()
+            # 4. Insertamos el usuario con la clave por defecto (debe cambiarla al ingresar)
             nuevo_usuario = models.User(
                 nombre=str(row["Nombre"]).strip(),
                 apellido=str(row["Apellido"]).strip(),
@@ -312,7 +313,8 @@ async def importar_usuarios_excel(
                 puesto=_texto_celda(row["Puesto"]) or None,
                 roles=roles,
                 sector_id=sector_id,
-                password_hash=utils.get_password_hash(clave_usuario),
+                password_hash=utils.get_password_hash(CLAVE_POR_DEFECTO),
+                debe_cambiar_clave=True,
                 estado="ACTIVO", activo=True, aprobado=True  # Quedan aprobados por defecto al ser importados por el Admin
             )
             db.add(nuevo_usuario)
@@ -320,7 +322,7 @@ async def importar_usuarios_excel(
         
         db.commit()
         
-        mensaje = f"Se importaron {usuarios_agregados} usuarios. Cada uno tiene una contraseña aleatoria única."
+        mensaje = f"Se importaron {usuarios_agregados} usuarios. Los nuevos ingresan con la clave {CLAVE_POR_DEFECTO} y deben cambiarla en el primer ingreso; a los existentes no se les toca la clave."
         if puestos_actualizados:
             mensaje += f" Se actualizó el puesto de {puestos_actualizados} usuarios existentes."
         if sin_cambios:

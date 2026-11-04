@@ -43,6 +43,8 @@ class User(Base):
     estado = Column(String(20), default="PENDIENTE", nullable=False, server_default="PENDIENTE")
     activo = Column(Boolean, default=False)
     aprobado = Column(Boolean, default=False)
+    # Se activa al importar o al resetear la clave (queda 123456): obliga a cambiarla al ingresar
+    debe_cambiar_clave = Column(Boolean, default=False, nullable=False, server_default="false")
     fecha_baja = Column(DateTime, nullable=True)
     motivo_baja = Column(String(255), nullable=True)
     roles = Column(String, default=ROLES_POR_DEFECTO)

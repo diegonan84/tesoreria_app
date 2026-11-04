@@ -97,7 +97,16 @@ window.fetch = async function() {
         window.location.href = '/login';  
         throw new Error("Token expirado"); // Lanza error para detener la promesa
     }
-    
+
+    // 403 con CAMBIO_CLAVE_REQUERIDO: tiene la clave por defecto y solo puede usar su perfil
+    if (response.status === 403) {
+        const datos = await response.clone().json().catch(() => null);
+        if (datos && datos.detail === "CAMBIO_CLAVE_REQUERIDO") {
+            if (window.location.pathname !== "/perfil") window.location.href = "/perfil";
+            throw new Error("Cambio de clave requerido");
+        }
+    }
+
     return response; 
 };
 

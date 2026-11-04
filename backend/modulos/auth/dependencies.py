@@ -29,20 +29,33 @@ def _decodificar_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Sesión inválida o expirada.")
 
 
-def _validar_usuario_vigente(payload: dict, db: Session) -> dict:
+# Detalle fijo que el frontend (app.js) reconoce para mandar al usuario a cambiar su clave
+CAMBIO_CLAVE_REQUERIDO = "CAMBIO_CLAVE_REQUERIDO"
+
+
+def _validar_usuario_vigente(payload: dict, db: Session, permitir_clave_pendiente: bool = False) -> dict:
     """El JWT vive hasta su expiración; consultamos la base para que una suspensión o baja
-    corte la sesión al instante y para que los cambios de roles apliquen sin re-loguearse."""
+    corte la sesión al instante y para que los cambios de roles apliquen sin re-loguearse.
+    Si el usuario tiene la clave por defecto pendiente de cambio, solo puede usar los
+    endpoints que lo permiten explícitamente (perfil y cambio de clave)."""
     from backend.modulos.usuarios.models import User  # import diferido: evita ciclos entre módulos
 
-    user = db.query(User.activo, User.roles).filter(User.id == payload.get("id")).first()
+    user = db.query(User.activo, User.roles, User.debe_cambiar_clave).filter(User.id == payload.get("id")).first()
     if not user or not user.activo:
         raise HTTPException(status_code=401, detail="Tu usuario ya no está habilitado en el sistema.")
+    if user.debe_cambiar_clave and not permitir_clave_pendiente:
+        raise HTTPException(status_code=403, detail=CAMBIO_CLAVE_REQUERIDO)
     payload["roles"] = [r.strip() for r in (user.roles or "").split(",") if r.strip()]
     return payload
 
 
 def verificar_usuario_autenticado(credentials: HTTPAuthorizationCredentials = Security(security), db: Session = Depends(get_db)):
     return _validar_usuario_vigente(_decodificar_token(credentials.credentials), db)
+
+
+def verificar_usuario_con_clave_pendiente(credentials: HTTPAuthorizationCredentials = Security(security), db: Session = Depends(get_db)):
+    """Igual que verificar_usuario_autenticado, pero deja pasar a quien todavía debe cambiar su clave."""
+    return _validar_usuario_vigente(_decodificar_token(credentials.credentials), db, permitir_clave_pendiente=True)
 
 
 def verificar_admin_actual(credentials: HTTPAuthorizationCredentials = Security(security), db: Session = Depends(get_db)):

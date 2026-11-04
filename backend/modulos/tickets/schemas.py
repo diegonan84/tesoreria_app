@@ -19,6 +19,17 @@ class TicketCreate(BaseModel):
     numero_inventario: Optional[str] = Field(None, max_length=50)
 
 
+class TicketPublicoCreate(BaseModel):
+    """Alta desde el formulario público (sin login). Correo y puesto son obligatorios."""
+    email: str = Field(..., min_length=5, max_length=160)
+    puesto: str = Field(..., min_length=1, max_length=120)
+    titulo: str = Field(..., min_length=3, max_length=150)
+    descripcion: str = Field(..., min_length=3, max_length=4000)
+    categoria: Categoria = "Otro"
+    # Campo trampa anti-spam: los humanos no lo ven, los bots lo completan
+    web: Optional[str] = None
+
+
 class TicketUpdate(BaseModel):
     """Cambios de gestión. El personal de Soporte puede tocar todo;
     el solicitante solo puede pasar su ticket a 'Cerrado' o reabrirlo."""
@@ -35,7 +46,7 @@ class ComentarioCreate(BaseModel):
 
 
 class UsuarioMini(BaseModel):
-    id: int
+    id: Optional[int] = None  # None = solicitante externo (formulario público)
     nombre: str
     sector: Optional[str] = None
 
@@ -58,6 +69,8 @@ class TicketResponse(BaseModel):
     prioridad: str
     estado: str
     numero_inventario: Optional[str] = None
+    solicitante_puesto: Optional[str] = None
+    origen: str = "sistema"  # sistema | formulario_publico
     fecha_creacion: datetime
     fecha_actualizacion: Optional[datetime] = None
     fecha_cierre: Optional[datetime] = None

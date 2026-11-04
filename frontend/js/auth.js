@@ -22,7 +22,12 @@ async function iniciarSesion(event) {
         const data = await res.json();
         if (res.ok) {
             localStorage.setItem("token", data.access_token);
-            window.location.href = "/";
+            if (data.debe_cambiar_clave) {
+                alert("Estás usando la clave por defecto. Tenés que cambiarla antes de continuar.");
+                window.location.href = "/perfil";
+            } else {
+                window.location.href = "/";
+            }
         } else {
             alert(data.detail || "Error al iniciar sesión");
         }

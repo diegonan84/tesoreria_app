@@ -15,7 +15,7 @@ import re
 import base64
 
 # Importamos las dependencias de seguridad desde nuestro nuevo módulo auth
-from backend.modulos.auth.dependencies import verificar_admin_actual, verificar_usuario_autenticado
+from backend.modulos.auth.dependencies import verificar_admin_actual, verificar_usuario_autenticado, verificar_usuario_con_clave_pendiente
 from backend.modulos.usuarios import schemas
 from backend.modulos.auditoria.service import registrar_evento
 
@@ -295,7 +295,7 @@ def crear_usuario_manual(datos: schemas.UserUpdate, request: Request, db: Sessio
     return {"mensaje": "Usuario creado exitosamente. Se generó una contraseña aleatoria segura."}
 
 @router.put("/usuarios/me/cambiar-clave")
-def cambiar_mi_clave(datos: schemas.PasswordChange, request: Request, db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+def cambiar_mi_clave(datos: schemas.PasswordChange, request: Request, db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_con_clave_pendiente)):
     email_usuario = usuario.get("sub")
     user = db.query(models.User).filter(models.User.email == email_usuario).first()
     if not user:
@@ -303,8 +303,13 @@ def cambiar_mi_clave(datos: schemas.PasswordChange, request: Request, db: Sessio
     
     if not utils.verify_password(datos.clave_actual, user.password_hash):
         raise HTTPException(status_code=400, detail="La contraseña actual ingresada es incorrecta.")
-        
+    if datos.nueva_clave != datos.confirmar_clave:
+        raise HTTPException(status_code=400, detail="La nueva contraseña y su confirmación no coinciden.")
+    if datos.nueva_clave == datos.clave_actual or datos.nueva_clave == "123456":
+        raise HTTPException(status_code=400, detail="Elegí una contraseña distinta a la actual y a la clave por defecto.")
+
     user.password_hash = utils.get_password_hash(datos.nueva_clave)
+    user.debe_cambiar_clave = False
     db.commit()
 
     registrar_evento(
@@ -319,7 +324,7 @@ def cambiar_mi_clave(datos: schemas.PasswordChange, request: Request, db: Sessio
 # ✨ PERFIL PROPIO (GET) ✨
 
 @router.get("/usuarios/me", response_model=schemas.PerfilResponse)
-def obtener_mi_perfil(db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_autenticado)):
+def obtener_mi_perfil(db: Session = Depends(database.get_db), usuario=Depends(verificar_usuario_con_clave_pendiente)):
     uid = usuario.get("id")
     user = db.query(models.User).filter(models.User.id == uid).first()
     if not user:
