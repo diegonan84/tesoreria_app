@@ -31,13 +31,15 @@ class Marcacion(Base):
 
 # Días de la semana del tablero (0 = lunes ... 4 = viernes)
 DIAS_SEMANA = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes")
-# Cómo se marca cada día en el tablero (un día sin fila = sin marcar)
+# Cómo se marca cada día en el tablero. Por defecto todos están convocados:
+# un día sin fila cuenta como CONVOCADO y RRHH solo asigna los días de Home.
 TIPOS_DIA = {"HOME": "Home", "CONVOCADO": "Convocado"}
+TIPO_POR_DEFECTO = "CONVOCADO"
 
 
 class HomeOfficeDia(Base):
     """Marca de un día de la semana para un usuario: HOME (trabaja desde su casa) o
-    CONVOCADO (tiene que ir a la oficina). Una fila por usuario y día; sin fila = sin marcar."""
+    CONVOCADO (tiene que ir a la oficina). Una fila por usuario y día; sin fila = CONVOCADO."""
     __tablename__ = "rrhh_home_office"
     __table_args__ = (UniqueConstraint("usuario_id", "dia_semana", name="uq_rrhh_home_office_usuario_dia"),)
 

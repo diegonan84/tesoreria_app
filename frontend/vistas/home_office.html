@@ -13,8 +13,11 @@
         .ho-tabla tfoot td { font-weight: 600; background: #f3f6f7; }
         .ho-marca { min-width: 84px; padding: 4px 8px; border-radius: 12px; border: 1px dashed #b8c4c9;
                     background: transparent; color: #9aa8ae; cursor: pointer; font-size: 0.85em; }
-        .ho-marca.home { background: #e3f2ef; border: 1px solid #58a598; color: #2c6d62; font-weight: 600; }
-        .ho-marca.convocado { background: #fdeee0; border: 1px solid #d9822b; color: #8a4a0f; font-weight: 600; }
+        .ho-marca.home { background: #9bc2e6; border: 1px solid #5b8fc7; color: #173f66; font-weight: 600; }
+        .ho-marca.convocado { background: #a9d08e; border: 1px solid #6f9e4f; color: #2f4d1b; font-weight: 600; }
+        .ho-acciones { margin-left: auto; display: flex; gap: 8px; }
+        #ho-resultado { margin-top: 12px; padding: 12px 16px; display: none; }
+        #ho-resultado ul { margin: 6px 0 0 18px; max-height: 180px; overflow-y: auto; color: #8a4a0f; }
         .ho-marca:disabled { opacity: .5; cursor: wait; }
         .ho-leyenda { display: flex; gap: 10px; align-items: center; color: #6b7c85; font-size: 0.9em; margin-top: 8px; }
         .ho-sub { color: #6b7c85; font-size: 0.85em; }
@@ -33,7 +36,7 @@
 
     <main class="dashboard-body">
         <h2>Tablero de Home Office</h2>
-        <p>Hacé clic en cada día para marcarlo: <b>Home</b> → <b>Convocado</b> → sin marcar. Los cambios se guardan al instante.</p>
+        <p>Todos arrancan <b>Convocados</b>. Hacé clic en un día para pasarlo a <b>Home</b> (y otro clic lo vuelve a Convocado). Los cambios se guardan al instante.</p>
         <div class="ho-leyenda">
             <span class="ho-marca home">Home</span> trabaja desde su casa
             <span class="ho-marca convocado">Convocado</span> tiene que ir a la oficina
@@ -47,10 +50,15 @@
             <label>Mostrar<br><select id="ho-solo">
                 <option value="">Todos</option>
                 <option value="HOME">Con algún día Home</option>
-                <option value="CONVOCADO">Con algún día Convocado</option>
-                <option value="vacio">Sin nada marcado</option>
+                <option value="sinhome">Sin Home (toda la semana convocados)</option>
             </select></label>
+            <div class="ho-acciones">
+                <button type="button" id="ho-exportar">Exportar Excel</button>
+                <button type="button" id="ho-importar">Importar Excel</button>
+                <input type="file" id="ho-archivo" accept=".xlsx" style="display:none;">
+            </div>
         </div>
+        <div class="card" id="ho-resultado"></div>
 
         <div class="card" style="margin-top: 16px; padding: 20px; overflow-x:auto;">
             <table class="ho-tabla">

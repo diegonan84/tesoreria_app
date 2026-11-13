@@ -30,7 +30,7 @@ function hoNormalizar(txt) {
 }
 
 const HO_TIPOS = { HOME: "Home", CONVOCADO: "Convocado" };
-const HO_SIGUIENTE = { "": "HOME", HOME: "CONVOCADO", CONVOCADO: null };
+const HO_SIGUIENTE = { HOME: "CONVOCADO", CONVOCADO: "HOME" };
 
 function hoFiltrados() {
     const q = hoNormalizar(document.getElementById("ho-q").value.trim());
@@ -39,14 +39,14 @@ function hoFiltrados() {
     return HO.usuarios.filter(u =>
         (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil}`).includes(q)) &&
         (!sector || (u.sector || "Sin sector") === sector) &&
-        (!mostrar || (mostrar === "vacio" ? u.dias.every(t => !t) : u.dias.includes(mostrar))));
+        (!mostrar || (mostrar === "sinhome" ? !u.dias.includes("HOME") : u.dias.includes(mostrar))));
 }
 
 function hoBoton(u, d) {
-    const tipo = u.dias[d];
-    const clase = tipo ? tipo.toLowerCase() : "";
+    const tipo = u.dias[d] || "CONVOCADO";
+    const clase = tipo.toLowerCase();
     return `<button type="button" class="ho-marca ${clase}" data-usuario="${u.usuario_id}" data-dia="${d}"
-                title="${HO_DIAS[d]}: clic para cambiar">${tipo ? HO_TIPOS[tipo] : "—"}</button>`;
+                title="${HO_DIAS[d]}: clic para cambiar">${HO_TIPOS[tipo]}</button>`;
 }
 
 function hoPintar() {
@@ -75,7 +75,7 @@ async function hoCambiar(boton) {
     const u = HO.usuarios.find(x => x.usuario_id === Number(boton.dataset.usuario));
     const d = Number(boton.dataset.dia);
     const dias = [...u.dias];
-    dias[d] = HO_SIGUIENTE[dias[d] || ""];
+    dias[d] = HO_SIGUIENTE[dias[d] || "CONVOCADO"];
     boton.disabled = true;
     try {
         const res = await fetch(`/api/rrhh/home-office/${u.usuario_id}`, {
@@ -83,7 +83,7 @@ async function hoCambiar(boton) {
         });
         if (!res.ok) throw new Error(await hoError(res, "No se pudo guardar."));
         u.dias = (await res.json()).dias;
-        hoToast(`${u.apellido}, ${HO_DIAS[d]}: ${u.dias[d] ? HO_TIPOS[u.dias[d]] : "sin marcar"}`);
+        hoToast(`${u.apellido}, ${HO_DIAS[d]}: ${HO_TIPOS[u.dias[d]]}`);
     } catch (e) {
         hoToast(e.message || "No se pudo conectar con el servidor.", true);
     }
@@ -107,7 +107,52 @@ async function hoCargar() {
     }
 }
 
+async function hoExportar(boton) {
+    boton.disabled = true;
+    try {
+        const res = await fetch("/api/rrhh/home-office/exportar", { headers: hoHeaders() });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudo exportar."));
+        const nombre = (res.headers.get("Content-Disposition") || "").match(/filename=([^;]+)/);
+        const url = URL.createObjectURL(await res.blob());
+        const a = Object.assign(document.createElement("a"), { href: url, download: nombre ? nombre[1] : "Home_Office.xlsx" });
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        hoToast(e.message || "No se pudo conectar con el servidor.", true);
+    }
+    boton.disabled = false;
+}
+
+async function hoImportar(archivo) {
+    if (!archivo) return;
+    if (!confirm(`Se va a cargar la semana de cada persona que figure en "${archivo.name}" (se busca por CUIL). ` +
+                 "Los días vacíos o en verde quedan Convocado. ¿Continuar?")) return;
+    const caja = document.getElementById("ho-resultado");
+    const boton = document.getElementById("ho-importar");
+    boton.disabled = true;
+    try {
+        const datos = new FormData();
+        datos.append("archivo", archivo);
+        const res = await fetch("/api/rrhh/home-office/importar", { method: "POST", headers: hoHeaders(), body: datos });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudo importar."));
+        const r = await res.json();
+        caja.innerHTML = `<b>Importación terminada:</b> ${r.actualizados} persona(s) actualizada(s), ${r.sin_cambios} sin cambios.` +
+            (r.problemas.length ? `<ul>${r.problemas.map(p => `<li>${escapeHTML(p)}</li>`).join("")}</ul>` : "");
+        caja.style.display = "block";
+        await hoCargar();
+    } catch (e) {
+        hoToast(e.message || "No se pudo conectar con el servidor.", true);
+    }
+    boton.disabled = false;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("ho-exportar").addEventListener("click", e => hoExportar(e.currentTarget));
+    document.getElementById("ho-importar").addEventListener("click", () => document.getElementById("ho-archivo").click());
+    document.getElementById("ho-archivo").addEventListener("change", e => {
+        hoImportar(e.target.files[0]);
+        e.target.value = "";
+    });
     document.getElementById("ho-q").addEventListener("input", hoPintar);
     document.getElementById("ho-sector").addEventListener("change", hoPintar);
     document.getElementById("ho-solo").addEventListener("change", hoPintar);
