@@ -2,7 +2,8 @@
 // home_office.js - RECURSOS HUMANOS / TABLERO DE HOME OFFICE
 // ============================================================================
 
-const HO = { usuarios: [] };
+// guardado: lo que está en la base; usuarios[].dias: lo que se ve (con cambios sin guardar)
+const HO = { usuarios: [], guardado: {} };
 const HO_DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
 function hoHeaders(json = false) {
@@ -42,11 +43,25 @@ function hoFiltrados() {
         (!mostrar || (mostrar === "sinhome" ? !u.dias.includes("HOME") : u.dias.includes(mostrar))));
 }
 
+function hoPendientes() {
+    return HO.usuarios.filter(u => u.dias.some((t, d) => t !== HO.guardado[u.usuario_id][d]));
+}
+
+function hoBarra() {
+    const n = hoPendientes().length;
+    document.getElementById("ho-barra").classList.toggle("con-cambios", n > 0);
+    document.getElementById("ho-estado").textContent = n
+        ? `Hay cambios sin guardar en ${n} persona${n > 1 ? "s" : ""}.`
+        : "Sin cambios pendientes.";
+    document.getElementById("ho-guardar").disabled = !n;
+    document.getElementById("ho-descartar").disabled = !n;
+}
+
 function hoBoton(u, d) {
     const tipo = u.dias[d] || "CONVOCADO";
-    const clase = tipo.toLowerCase();
-    return `<button type="button" class="ho-marca ${clase}" data-usuario="${u.usuario_id}" data-dia="${d}"
-                title="${HO_DIAS[d]}: clic para cambiar">${HO_TIPOS[tipo]}</button>`;
+    const pendiente = tipo !== HO.guardado[u.usuario_id][d] ? " pendiente" : "";
+    return `<button type="button" class="ho-marca ${tipo.toLowerCase()}${pendiente}" data-usuario="${u.usuario_id}" data-dia="${d}"
+                title="${HO_DIAS[d]}: clic para cambiar${pendiente ? " (sin guardar)" : ""}">${HO_TIPOS[tipo]}</button>`;
 }
 
 function hoPintar() {
@@ -69,24 +84,40 @@ function hoPintar() {
     const fila = (titulo, valores) => `<tr><td colspan="3">${titulo}</td>${valores.map(n => `<td class="dia">${n}</td>`).join("")}</tr>`;
     document.getElementById("ho-pie").innerHTML =
         fila(`Home (de ${lista.length} personas)`, contar("HOME")) + fila("Convocados", contar("CONVOCADO"));
+    hoBarra();
 }
 
-async function hoCambiar(boton) {
+// El clic solo cambia la pantalla; se guarda con el botón "Guardar cambios"
+function hoCambiar(boton) {
     const u = HO.usuarios.find(x => x.usuario_id === Number(boton.dataset.usuario));
     const d = Number(boton.dataset.dia);
-    const dias = [...u.dias];
-    dias[d] = HO_SIGUIENTE[dias[d] || "CONVOCADO"];
+    u.dias[d] = HO_SIGUIENTE[u.dias[d] || "CONVOCADO"];
+    hoPintar();
+}
+
+async function hoGuardar() {
+    const cambios = hoPendientes().map(u => ({ usuario_id: u.usuario_id, dias: u.dias }));
+    if (!cambios.length) return;
+    const boton = document.getElementById("ho-guardar");
     boton.disabled = true;
+    boton.textContent = "Guardando…";
     try {
-        const res = await fetch(`/api/rrhh/home-office/${u.usuario_id}`, {
-            method: "PUT", headers: hoHeaders(true), body: JSON.stringify({ dias }),
+        const res = await fetch("/api/rrhh/home-office", {
+            method: "PUT", headers: hoHeaders(true), body: JSON.stringify({ cambios }),
         });
         if (!res.ok) throw new Error(await hoError(res, "No se pudo guardar."));
-        u.dias = (await res.json()).dias;
-        hoToast(`${u.apellido}, ${HO_DIAS[d]}: ${HO_TIPOS[u.dias[d]]}`);
+        cambios.forEach(c => { HO.guardado[c.usuario_id] = [...c.dias]; });
+        hoToast(`Guardado: ${cambios.length} persona${cambios.length > 1 ? "s" : ""}.`);
     } catch (e) {
-        hoToast(e.message || "No se pudo conectar con el servidor.", true);
+        hoToast(e.message || "No se pudo conectar con el servidor. Los cambios siguen sin guardar.", true);
     }
+    boton.textContent = "Guardar cambios";
+    hoPintar();
+}
+
+function hoDescartar() {
+    if (!confirm("¿Descartar los cambios sin guardar?")) return;
+    HO.usuarios.forEach(u => { u.dias = [...HO.guardado[u.usuario_id]]; });
     hoPintar();
 }
 
@@ -98,6 +129,7 @@ async function hoCargar() {
         const res = await fetch("/api/rrhh/home-office", { headers: hoHeaders() });
         if (!res.ok) { aviso(await hoError(res, "No se pudo cargar el tablero.")); return; }
         HO.usuarios = await res.json();
+        HO.guardado = Object.fromEntries(HO.usuarios.map(u => [u.usuario_id, [...u.dias]]));
         const sectores = [...new Set(HO.usuarios.map(u => u.sector || "Sin sector"))].sort();
         document.getElementById("ho-sector").innerHTML = `<option value="">Todos</option>` +
             sectores.map(s => `<option>${escapeHTML(s)}</option>`).join("");
@@ -108,6 +140,7 @@ async function hoCargar() {
 }
 
 async function hoExportar(boton) {
+    if (hoPendientes().length) hoToast("Ojo: el Excel sale con lo guardado; tenés cambios sin guardar.", true);
     boton.disabled = true;
     try {
         const res = await fetch("/api/rrhh/home-office/exportar", { headers: hoHeaders() });
@@ -125,6 +158,7 @@ async function hoExportar(boton) {
 
 async function hoImportar(archivo) {
     if (!archivo) return;
+    if (hoPendientes().length && !confirm("Tenés cambios sin guardar en pantalla: la importación los va a reemplazar. ¿Seguir?")) return;
     if (!confirm(`Se va a cargar la semana de cada persona que figure en "${archivo.name}" (se busca por CUIL). ` +
                  "Los días vacíos o en verde quedan Convocado. ¿Continuar?")) return;
     const caja = document.getElementById("ho-resultado");
@@ -156,6 +190,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("ho-q").addEventListener("input", hoPintar);
     document.getElementById("ho-sector").addEventListener("change", hoPintar);
     document.getElementById("ho-solo").addEventListener("change", hoPintar);
+    document.getElementById("ho-guardar").addEventListener("click", hoGuardar);
+    document.getElementById("ho-descartar").addEventListener("click", hoDescartar);
+    // Aviso del navegador si se sale de la página con cambios sin guardar
+    window.addEventListener("beforeunload", e => {
+        if (hoPendientes().length) { e.preventDefault(); e.returnValue = ""; }
+    });
     document.getElementById("ho-cuerpo").addEventListener("click", e => {
         const boton = e.target.closest("button.ho-marca");
         if (boton) hoCambiar(boton);

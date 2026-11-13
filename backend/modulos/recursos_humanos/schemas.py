@@ -26,3 +26,12 @@ class HomeOfficeUsuario(BaseModel):
 
 class HomeOfficeIn(BaseModel):
     dias: List[Optional[str]]  # null o vacío se toma como CONVOCADO
+
+
+class HomeOfficeCambio(BaseModel):
+    usuario_id: int
+    dias: List[Optional[str]]
+
+
+class HomeOfficeLote(BaseModel):
+    cambios: List[HomeOfficeCambio]

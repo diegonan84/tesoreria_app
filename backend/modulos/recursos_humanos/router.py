@@ -192,6 +192,42 @@ async def importar_home_office(
     return {"actualizados": actualizados, "sin_cambios": sin_cambios, "problemas": problemas}
 
 
+def _validar_semana(dias: List[Optional[str]]) -> List[str]:
+    nuevos = [(t or "").strip().upper() or TIPO_POR_DEFECTO for t in dias]
+    if len(nuevos) != len(DIAS_SEMANA):
+        raise HTTPException(status_code=400, detail="Hay que mandar un valor por cada día de lunes a viernes.")
+    if any(t not in TIPOS_DIA for t in nuevos):
+        raise HTTPException(status_code=400, detail="Cada día tiene que ser Home o Convocado.")
+    return nuevos
+
+
+def _texto_semana(u: User, dias: List[str]) -> str:
+    home = ", ".join(DIAS_SEMANA[d] for d, t in enumerate(dias) if t == "HOME") or "ninguno"
+    return f"Home office de {u.apellido}, {u.nombre}: días de Home: {home}"
+
+
+@router.put("/home-office", dependencies=[Depends(_home_office)])
+def guardar_home_office_lote(
+    datos: schemas.HomeOfficeLote, request: Request,
+    db: Session = Depends(get_db), actual=Depends(_home_office),
+):
+    """Botón Guardar del tablero: guarda todos los cambios pendientes juntos (todo o nada)."""
+    if not datos.cambios:
+        return {"guardados": 0}
+    semanas = {c.usuario_id: _validar_semana(c.dias) for c in datos.cambios}
+    usuarios = {u.id: u for u in db.query(User).filter(User.id.in_(semanas.keys()))}
+    faltan = [str(i) for i in semanas if i not in usuarios]
+    if faltan:
+        raise HTTPException(status_code=404, detail=f"No se encontraron los usuarios: {', '.join(faltan)}. No se guardó nada.")
+
+    for usuario_id, dias in semanas.items():
+        _guardar_semana(db, usuario_id, dias, actual)
+    db.commit()
+    for usuario_id, dias in semanas.items():
+        _auditar(db, actual, request, _texto_semana(usuarios[usuario_id], dias))
+    return {"guardados": len(semanas)}
+
+
 @router.put("/home-office/{usuario_id}", response_model=schemas.HomeOfficeUsuario)
 def guardar_home_office(
     usuario_id: int, datos: schemas.HomeOfficeIn, request: Request,
@@ -201,18 +237,11 @@ def guardar_home_office(
     u = db.query(User).options(joinedload(User.sector)).filter(User.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    nuevos = [(t or "").strip().upper() or TIPO_POR_DEFECTO for t in datos.dias]
-    if len(nuevos) != len(DIAS_SEMANA):
-        raise HTTPException(status_code=400, detail="Hay que mandar un valor por cada día de lunes a viernes.")
-    if any(t not in TIPOS_DIA for t in nuevos):
-        raise HTTPException(status_code=400, detail="Cada día tiene que ser Home o Convocado.")
+    nuevos = _validar_semana(datos.dias)
 
     _guardar_semana(db, usuario_id, nuevos, actual)
     db.commit()
-
-    texto = ", ".join(DIAS_SEMANA[d] for d, t in enumerate(nuevos) if t == "HOME") or "ninguno"
-    texto = f"días de Home: {texto}"
-    _auditar(db, actual, request, f"Home office de {u.apellido}, {u.nombre}: {texto}")
+    _auditar(db, actual, request, _texto_semana(u, nuevos))
     return schemas.HomeOfficeUsuario(
         usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
         sector=u.sector.nombre if u.sector else None, dias=nuevos,

@@ -19,6 +19,14 @@
         #ho-resultado { margin-top: 12px; padding: 12px 16px; display: none; }
         #ho-resultado ul { margin: 6px 0 0 18px; max-height: 180px; overflow-y: auto; color: #8a4a0f; }
         .ho-marca:disabled { opacity: .5; cursor: wait; }
+        .ho-marca.pendiente { outline: 2px dashed #d9822b; outline-offset: 2px; }
+        .ho-barra { position: sticky; top: 0; z-index: 5; margin-top: 16px; padding: 12px 16px; display: flex;
+                    align-items: center; gap: 12px; flex-wrap: wrap; }
+        .ho-barra.con-cambios { background: #fff7ec; border: 1px solid #d9822b; }
+        #ho-estado { flex: 1; color: #6b7c85; }
+        .ho-barra.con-cambios #ho-estado { color: #8a4a0f; font-weight: 600; }
+        #ho-guardar { background: #1a3644; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        #ho-guardar:disabled, #ho-descartar:disabled { opacity: .45; cursor: default; }
         .ho-leyenda { display: flex; gap: 10px; align-items: center; color: #6b7c85; font-size: 0.9em; margin-top: 8px; }
         .ho-sub { color: #6b7c85; font-size: 0.85em; }
         .ho-aviso { text-align: center; color: #6b7c85; padding: 20px; }
@@ -36,7 +44,7 @@
 
     <main class="dashboard-body">
         <h2>Tablero de Home Office</h2>
-        <p>Todos arrancan <b>Convocados</b>. Hacé clic en un día para pasarlo a <b>Home</b> (y otro clic lo vuelve a Convocado). Los cambios se guardan al instante.</p>
+        <p>Todos arrancan <b>Convocados</b>. Hacé clic en un día para pasarlo a <b>Home</b> (y otro clic lo vuelve a Convocado). Cuando termines, apretá <b>Guardar cambios</b>.</p>
         <div class="ho-leyenda">
             <span class="ho-marca home">Home</span> trabaja desde su casa
             <span class="ho-marca convocado">Convocado</span> tiene que ir a la oficina
@@ -60,7 +68,13 @@
         </div>
         <div class="card" id="ho-resultado"></div>
 
-        <div class="card" style="margin-top: 16px; padding: 20px; overflow-x:auto;">
+        <div class="card ho-barra" id="ho-barra">
+            <span id="ho-estado">Sin cambios pendientes.</span>
+            <button type="button" id="ho-descartar" disabled>Descartar</button>
+            <button type="button" id="ho-guardar" disabled>Guardar cambios</button>
+        </div>
+
+        <div class="card" style="margin-top: 8px; padding: 20px; overflow-x:auto;">
             <table class="ho-tabla">
                 <thead>
                     <tr>
