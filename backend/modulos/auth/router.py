@@ -231,6 +231,13 @@ def _texto_celda(valor) -> str:
     return str(valor).strip()
 
 
+def _clave_columna(nombre) -> str:
+    """"Cód Reg", "COD. REG", "cod_reg" → "CODREG" (para reconocer el encabezado sin importar cómo se escriba)."""
+    import unicodedata
+    texto = unicodedata.normalize("NFD", str(nombre)).encode("ascii", "ignore").decode().upper()
+    return "".join(ch for ch in texto if ch.isalnum())
+
+
 # --- ENDPOINT PARA IMPORTAR USUARIOS DESDE EXCEL ---
 @router.post("/admin/usuarios/importar")
 async def importar_usuarios_excel(
@@ -255,9 +262,12 @@ async def importar_usuarios_excel(
         for col in columnas_esperadas:
             if col not in df.columns:
                 raise HTTPException(status_code=400, detail=f"Falta la columna requerida en el Excel: {col}")
+        # "Cód Reg" es opcional: se acepta con o sin tilde/punto y en mayúsculas o minúsculas
+        col_cod_reg = next((c for c in df.columns if _clave_columna(c) == "CODREG"), None)
 
         usuarios_agregados = 0
         puestos_actualizados = 0
+        cod_reg_actualizados = 0
         sin_cambios = 0
         errores = []
         
@@ -274,14 +284,22 @@ async def importar_usuarios_excel(
             if not email or not cuil:
                 continue
 
-            # Si el usuario ya existe, solo actualizamos su puesto (si cambió; vacío en el Excel lo quita)
+            cod_reg_excel = _texto_celda(row[col_cod_reg]) if col_cod_reg else None
+
+            # Si el usuario ya existe, solo actualizamos su puesto y su Cód Reg (si cambiaron; vacío en el Excel los quita)
             usuario_existente = db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first()
             if usuario_existente:
+                cambio = False
                 puesto_excel = _texto_celda(row["Puesto"])
                 if puesto_excel != (usuario_existente.puesto or ""):
                     usuario_existente.puesto = puesto_excel or None
                     puestos_actualizados += 1
-                else:
+                    cambio = True
+                if col_cod_reg and cod_reg_excel != (usuario_existente.cod_reg or ""):
+                    usuario_existente.cod_reg = cod_reg_excel or None
+                    cod_reg_actualizados += 1
+                    cambio = True
+                if not cambio:
                     sin_cambios += 1
                 continue
             
@@ -311,6 +329,7 @@ async def importar_usuarios_excel(
                 email=email,
                 reparticion=str(row["Repartición"]).strip(),
                 puesto=_texto_celda(row["Puesto"]) or None,
+                cod_reg=cod_reg_excel or None,
                 roles=roles,
                 sector_id=sector_id,
                 password_hash=utils.get_password_hash(CLAVE_POR_DEFECTO),
@@ -325,16 +344,19 @@ async def importar_usuarios_excel(
         mensaje = f"Se importaron {usuarios_agregados} usuarios. Los nuevos ingresan con la clave {CLAVE_POR_DEFECTO} y deben cambiarla en el primer ingreso; a los existentes no se les toca la clave."
         if puestos_actualizados:
             mensaje += f" Se actualizó el puesto de {puestos_actualizados} usuarios existentes."
+        if cod_reg_actualizados:
+            mensaje += f" Se actualizó el Cód Reg de {cod_reg_actualizados} usuarios existentes."
         if sin_cambios:
-            mensaje += f" {sin_cambios} usuarios ya existían sin cambios de puesto."
+            mensaje += f" {sin_cambios} usuarios ya existían sin cambios de puesto ni de Cód Reg."
 
         registrar_evento(
             db, usuario_id=admin_auth.get("id"), accion="IMPORTAR_USUARIOS_EXCEL",
-            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados y {puestos_actualizados} puestos actualizados desde archivo {file.filename}",
+            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados, {puestos_actualizados} puestos y {cod_reg_actualizados} Cód Reg actualizados desde archivo {file.filename}",
             ip_address=request.client.host if request else None
         )
             
-        return {"mensaje": mensaje, "errores": errores, "usuarios_agregados": usuarios_agregados, "puestos_actualizados": puestos_actualizados}
+        return {"mensaje": mensaje, "errores": errores, "usuarios_agregados": usuarios_agregados,
+                "puestos_actualizados": puestos_actualizados, "cod_reg_actualizados": cod_reg_actualizados}
         
     except HTTPException:
         raise

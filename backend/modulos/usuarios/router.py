@@ -246,7 +246,8 @@ def editar_usuario_completo(user_id: int, datos: schemas.UserUpdate, request: Re
     user.cuil = datos.cuil
     user.email = datos.email
     user.reparticion = datos.reparticion
-    user.puesto = datos.puesto  
+    user.puesto = datos.puesto
+    user.cod_reg = (datos.cod_reg or "").strip() or None
     user.sector_id = datos.sector_id 
     user.roles = ",".join(datos.roles) if datos.roles else "Operador"
     
@@ -275,6 +276,7 @@ def crear_usuario_manual(datos: schemas.UserUpdate, request: Request, db: Sessio
         email=datos.email, 
         reparticion=datos.reparticion,
         puesto=datos.puesto,
+        cod_reg=(datos.cod_reg or "").strip() or None,
         sector_id=datos.sector_id,
         password_hash=utils.get_password_hash(_generar_clave_aleatoria()),
         estado="ACTIVO",

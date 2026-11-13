@@ -41,6 +41,7 @@ class UserUpdate(BaseModel):
     email: str
     reparticion: str
     puesto: Optional[str] = None
+    cod_reg: Optional[str] = None
     roles: List[str]
     sector_id: Optional[int] = None  # <-- Campo opcional agregado aquí
 
@@ -52,6 +53,7 @@ class UserResponse(BaseModel):
     email: str
     reparticion: str
     puesto: Optional[str] = None
+    cod_reg: Optional[str] = None
     activo: bool
     aprobado: bool = False
     estado: str = "PENDIENTE"

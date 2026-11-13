@@ -89,7 +89,7 @@ function usuariosFiltrados() {
         if (estado === "VIGENTES" && u.estado === "BAJA") return false;
         if (estado && estado !== "VIGENTES" && u.estado !== estado) return false;
         if (!texto) return true;
-        return [u.nombre, u.apellido, u.email, u.cuil, u.puesto, u.reparticion]
+        return [u.nombre, u.apellido, u.email, u.cuil, u.puesto, u.reparticion, u.cod_reg]
             .some(v => (v || "").toLowerCase().includes(texto));
     });
 }
@@ -136,7 +136,8 @@ function renderizarTabla() {
         });
 
         const sectorHtml = u.sector ? `<span style="background-color: ${esc(u.sector.color || '#1a3644')}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${esc(u.sector.nombre)}</span>` : '<span style="color: #999; font-size: 11px; font-style: italic;">N/A</span>';
-        const puestoTexto = u.puesto ? `<br><span style="font-size:11px; color:#58a598; font-weight:bold;">${esc(u.puesto)}</span>` : '';
+        const puestoTexto = (u.puesto ? `<br><span style="font-size:11px; color:#58a598; font-weight:bold;">${esc(u.puesto)}</span>` : '')
+            + (u.cod_reg ? `<br><span style="font-size:11px; color:#666;">Cód Reg: <strong>${esc(u.cod_reg)}</strong></span>` : '');
 
         const inicialesTabla = esc(((u.nombre || '?')[0] + (u.apellido || '?')[0]).toUpperCase());
         const avatarTabla = u.foto
@@ -295,7 +296,8 @@ function abrirAlta() {
     document.getElementById("alta-cuil").value = "";
     document.getElementById("alta-email").value = "";
     document.getElementById("alta-reparticion").value = "";
-    document.getElementById("alta-puesto").value = ""; 
+    document.getElementById("alta-puesto").value = "";
+    document.getElementById("alta-cod-reg").value = "";
     if (document.getElementById("alta-sector")) document.getElementById("alta-sector").value = "";
     document.querySelectorAll('#panel-alta .check-rol-alta').forEach(cb => cb.checked = (cb.value === "Operador"));
 
@@ -317,6 +319,7 @@ async function guardarAlta(event) {
         email: document.getElementById("alta-email").value,
         reparticion: document.getElementById("alta-reparticion").value,
         puesto: document.getElementById("alta-puesto").value || null,
+        cod_reg: document.getElementById("alta-cod-reg").value.trim() || null,
         sector_id: (selSector && selSector.value) ? parseInt(selSector.value) : null,
         roles: rolesSeleccionados
     };
@@ -340,7 +343,8 @@ function abrirEdicion(id) {
     document.getElementById("edit-cuil").value = usuario.cuil;
     document.getElementById("edit-email").value = usuario.email;
     document.getElementById("edit-reparticion").value = usuario.reparticion;
-    document.getElementById("edit-puesto").value = usuario.puesto || ""; 
+    document.getElementById("edit-puesto").value = usuario.puesto || "";
+    document.getElementById("edit-cod-reg").value = usuario.cod_reg || "";
     if (document.getElementById("edit-sector")) document.getElementById("edit-sector").value = usuario.sector_id || "";
 
     const listaRoles = usuario.roles ? usuario.roles.split(',') : [];
@@ -380,6 +384,7 @@ async function guardarEdicion(event) {
         email: document.getElementById("edit-email").value,
         reparticion: document.getElementById("edit-reparticion").value,
         puesto: document.getElementById("edit-puesto").value || null,
+        cod_reg: document.getElementById("edit-cod-reg").value.trim() || null,
         sector_id: (selSector && selSector.value) ? parseInt(selSector.value) : null,
         roles: rolesSeleccionados
     };
@@ -552,6 +557,7 @@ async function guardarAlta(event) {
         email: document.getElementById("alta-email").value.trim(),
         reparticion: document.getElementById("alta-reparticion").value.trim(),
         puesto: document.getElementById("alta-puesto").value.trim(),
+        cod_reg: document.getElementById("alta-cod-reg").value.trim() || null,
         sector_id: (selSector && selSector.value) ? parseInt(selSector.value) : null,
         roles: rolesSeleccionados
     };
