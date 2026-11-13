@@ -39,6 +39,9 @@ class HomeOfficeIn(BaseModel):
 class HomeOfficeCambio(BaseModel):
     usuario_id: int
     dias: List[Optional[str]]
+    # Opcionales: si no vienen, no se tocan. Franja vacía = ese día no tiene horario.
+    franjas: Optional[List[Optional[str]]] = None
+    observacion: Optional[str] = None
 
 
 class HomeOfficeLote(BaseModel):

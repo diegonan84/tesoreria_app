@@ -23,6 +23,7 @@ from backend.modulos.auditoria.service import registrar_evento
 import json
 
 from . import schemas, excel_home_office, excel_horarios, nombres
+from .franjas import leer_franja
 from .models import (Marcacion, HomeOfficeDia, PeriodoSinControl, PersonalHorario,
                      DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO)
 
@@ -122,17 +123,40 @@ def _franjas_guardadas(db: Session) -> dict:
     return salida
 
 
-def _guardar_semana(db: Session, usuario_id: int, dias: List[str], actual: dict):
-    """Cambia Home / Convocado de cada día conservando la franja horaria cargada."""
+def _guardar_semana(db: Session, usuario_id: int, dias: List[str], actual: dict,
+                    franjas: Optional[List[Optional[str]]] = None):
+    """Cambia Home / Convocado de cada día. Si vienen `franjas`, también el horario de cada día
+    (vacío = sin horario); si no vienen, se conserva el horario cargado."""
     filas = {f.dia_semana: f for f in db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id)}
     for d, tipo in enumerate(dias):
         fila = filas.get(d)
         if fila is None:
-            db.add(HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, tipo=tipo, modificado_por_id=actual.get("id")))
-        elif fila.tipo != tipo:
-            fila.tipo = tipo
-            fila.modificado_por_id = actual.get("id")
-            fila.fecha_modificacion = datetime.utcnow()
+            fila = HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, tipo=tipo)
+            db.add(fila)
+        if franjas is not None:
+            f = leer_franja(franjas[d])
+            if f is None:
+                tipo = "SIN_HORARIO"
+                fila.franja = fila.hora_desde = fila.hora_hasta = fila.lugar = None
+            else:
+                if tipo == "SIN_HORARIO":
+                    tipo = "CONVOCADO"
+                if f.remoto:  # escribieron la R en el horario
+                    tipo = "HOME"
+                fila.franja = (f.limpio or f.texto)[:80] if f.limpio or not f.remoto else None
+                fila.hora_desde, fila.hora_hasta = f.desde, f.hasta
+                fila.lugar = f.lugar[:60] if f.lugar else None
+        fila.tipo = tipo
+        fila.modificado_por_id = actual.get("id")
+        fila.fecha_modificacion = datetime.utcnow()
+
+
+def _guardar_observacion(db: Session, usuario_id: int, observacion: Optional[str]):
+    ph = db.query(PersonalHorario).filter(PersonalHorario.usuario_id == usuario_id).first()
+    if ph is None:
+        ph = PersonalHorario(usuario_id=usuario_id)
+        db.add(ph)
+    ph.observacion = (observacion or "").strip() or None
 
 
 @router.get("/home-office", response_model=List[schemas.HomeOfficeUsuario], dependencies=[Depends(_home_office)])
@@ -256,17 +280,32 @@ def guardar_home_office_lote(
     """Botón Guardar del tablero: guarda todos los cambios pendientes juntos (todo o nada)."""
     if not datos.cambios:
         return {"guardados": 0}
+    cambios = {c.usuario_id: c for c in datos.cambios}
     semanas = {c.usuario_id: _validar_semana(c.dias) for c in datos.cambios}
+    for c in datos.cambios:
+        if c.franjas is not None and len(c.franjas) != len(DIAS_SEMANA):
+            raise HTTPException(status_code=400, detail="Hay que mandar un horario por cada día de lunes a viernes.")
     usuarios = {u.id: u for u in db.query(User).filter(User.id.in_(semanas.keys()))}
     faltan = [str(i) for i in semanas if i not in usuarios]
     if faltan:
         raise HTTPException(status_code=404, detail=f"No se encontraron los usuarios: {', '.join(faltan)}. No se guardó nada.")
 
     for usuario_id, dias in semanas.items():
-        _guardar_semana(db, usuario_id, dias, actual)
+        c = cambios[usuario_id]
+        _guardar_semana(db, usuario_id, dias, actual, c.franjas)
+        if "observacion" in c.model_fields_set:
+            _guardar_observacion(db, usuario_id, c.observacion)
     db.commit()
-    for usuario_id, dias in semanas.items():
-        _auditar(db, actual, request, _texto_semana(usuarios[usuario_id], dias))
+    guardadas = _semanas_guardadas(db)
+    franjas = _franjas_guardadas(db)
+    for usuario_id in semanas:
+        u, c = usuarios[usuario_id], cambios[usuario_id]
+        texto = _texto_semana(u, guardadas.get(usuario_id, semanas[usuario_id]))
+        if c.franjas is not None:
+            texto += " | horarios: " + ", ".join(f"{DIAS_SEMANA[d][:3]} {f or '—'}" for d, f in enumerate(franjas.get(usuario_id, [None] * 5)))
+        if "observacion" in c.model_fields_set:
+            texto += f" | observaciones: {(c.observacion or '').strip() or '(vacío)'}"
+        _auditar(db, actual, request, texto[:1000])
     return {"guardados": len(semanas)}
 
 

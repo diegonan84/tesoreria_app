@@ -45,8 +45,22 @@ function hoFiltrados() {
         (!mostrar || (mostrar === "sinhome" ? !u.dias.includes("HOME") : u.dias.includes(mostrar))));
 }
 
+// Estado de una persona tal como está en la base (para saber qué quedó sin guardar)
+function hoFoto(u) {
+    return { dias: [...u.dias], franjas: [...(u.franjas || [null, null, null, null, null])], observacion: u.observacion || "" };
+}
+
+function hoDiaPendiente(u, d) {
+    const g = HO.guardado[u.usuario_id];
+    return u.dias[d] !== g.dias[d] || (u.franjas[d] || "") !== (g.franjas[d] || "");
+}
+
+function hoObsPendiente(u) {
+    return (u.observacion || "") !== HO.guardado[u.usuario_id].observacion;
+}
+
 function hoPendientes() {
-    return HO.usuarios.filter(u => u.dias.some((t, d) => t !== HO.guardado[u.usuario_id][d]));
+    return HO.usuarios.filter(u => HO_DIAS.some((_, d) => hoDiaPendiente(u, d)) || hoObsPendiente(u));
 }
 
 function hoBarra() {
@@ -62,35 +76,34 @@ function hoBarra() {
 function hoBoton(u, d) {
     const tipo = u.dias[d] || "CONVOCADO";
     const franja = (u.franjas || [])[d];
-    if (tipo === "SIN_HORARIO") {
-        return `<span class="ho-marca sin_horario" title="${HO_DIAS[d]}: sin horario en la planilla">—</span>`;
-    }
-    const pendiente = tipo !== HO.guardado[u.usuario_id][d] ? " pendiente" : "";
+    const pendiente = hoDiaPendiente(u, d) ? " pendiente" : "";
+    const ayuda = tipo === "SIN_HORARIO" ? "sin horario; doble clic para cargarlo" : "clic: Home/Convocado · doble clic: editar horario";
     return `<button type="button" class="ho-marca ${tipo.toLowerCase()}${pendiente}" data-usuario="${u.usuario_id}" data-dia="${d}"
-                title="${HO_DIAS[d]}: clic para cambiar${pendiente ? " (sin guardar)" : ""}">${HO_TIPOS[tipo]}${franja ? `<small>${escapeHTML(franja)}</small>` : ""}</button>`;
+                title="${HO_DIAS[d]}: ${ayuda}${pendiente ? " (sin guardar)" : ""}">${HO_TIPOS[tipo]}${franja ? `<small>${escapeHTML(franja)}</small>` : ""}</button>`;
 }
 
 function hoPintar() {
     const lista = hoFiltrados();
     const cuerpo = document.getElementById("ho-cuerpo");
     if (!lista.length) {
-        cuerpo.innerHTML = `<tr><td colspan="8" class="ho-aviso">No hay personas para mostrar.</td></tr>`;
+        cuerpo.innerHTML = `<tr><td colspan="9" class="ho-aviso">No hay personas para mostrar.</td></tr>`;
     } else {
         cuerpo.innerHTML = lista.map(u => `
             <tr class="${u.sin_control ? "ho-sin-control" : ""}">
                 <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}
                     ${u.cod_reg ? `<span class="ho-sub"> · Cód Reg ${escapeHTML(u.cod_reg)}</span>` : ""}
-                    ${u.observacion ? `<br><span class="ho-obs">${escapeHTML(u.observacion)}</span>` : ""}
                     ${u.sin_control ? `<br><span class="ho-sc-badge" title="No se controla Home / Convocado">⏸ ${escapeHTML(u.sin_control)}</span>` : ""}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
                 <td class="ho-sub">${escapeHTML(u.area || "Sin área")}${u.subsector ? `<br>${escapeHTML(u.subsector)}` : ""}</td>
                 ${HO_DIAS.map((_, d) => `<td class="dia">${hoBoton(u, d)}</td>`).join("")}
+                <td class="ho-col-obs${hoObsPendiente(u) ? " pendiente" : ""}" data-usuario="${u.usuario_id}"
+                    title="Doble clic para editar">${escapeHTML(u.observacion || "")}</td>
             </tr>`).join("");
     }
 
     // Totales del grupo filtrado por día
     const contar = tipo => HO_DIAS.map((_, d) => lista.filter(u => u.dias[d] === tipo).length);
-    const fila = (titulo, valores) => `<tr><td colspan="3">${titulo}</td>${valores.map(n => `<td class="dia">${n}</td>`).join("")}</tr>`;
+    const fila = (titulo, valores) => `<tr><td colspan="3">${titulo}</td>${valores.map(n => `<td class="dia">${n}</td>`).join("")}<td></td></tr>`;
     document.getElementById("ho-pie").innerHTML =
         fila(`Home (de ${lista.length} personas)`, contar("HOME")) + fila("Convocados", contar("CONVOCADO"));
     hoBarra();
@@ -105,8 +118,56 @@ function hoCambiar(boton) {
     hoPintar();
 }
 
+// Editor en el lugar (doble clic): Enter o salir del campo confirma, Esc cancela
+function hoEditor(celda, valor, multilinea, alConfirmar) {
+    const campo = document.createElement(multilinea ? "textarea" : "input");
+    campo.className = "ho-editor";
+    campo.value = valor || "";
+    if (!multilinea) campo.placeholder = "Ej: 9 a 16 (vacío = sin horario)";
+    celda.innerHTML = "";
+    celda.appendChild(campo);
+    campo.focus();
+    campo.select();
+    let listo = false;
+    const terminar = guardar => {
+        if (listo) return;
+        listo = true;
+        if (guardar) alConfirmar(campo.value.trim());
+        hoPintar();
+    };
+    campo.addEventListener("keydown", e => {
+        if (e.key === "Escape") { e.preventDefault(); terminar(false); }
+        else if (e.key === "Enter" && (!multilinea || !e.shiftKey)) { e.preventDefault(); terminar(true); }
+    });
+    campo.addEventListener("blur", () => terminar(true));
+    campo.addEventListener("click", e => e.stopPropagation());
+    campo.addEventListener("dblclick", e => e.stopPropagation());
+}
+
+function hoEditarHorario(boton) {
+    const u = HO.usuarios.find(x => x.usuario_id === Number(boton.dataset.usuario));
+    const d = Number(boton.dataset.dia);
+    hoEditor(boton.parentElement, u.franjas[d], false, texto => {
+        // Una "R" escrita en el horario lo marca como Home (igual que en la planilla)
+        const conR = /(^\s*R\b[\s:\-–]*)|([\s\-–]R\s*$)/i.test(texto);
+        const limpio = texto.replace(/^\s*R\b[\s:\-–]*/i, "").replace(/[\s\-–]+R\s*$/i, "").trim();
+        u.franjas[d] = limpio || null;
+        if (!limpio) u.dias[d] = "SIN_HORARIO";
+        else if (conR) u.dias[d] = "HOME";
+        else if (u.dias[d] === "SIN_HORARIO") u.dias[d] = "CONVOCADO";
+    });
+}
+
+function hoEditarObservacion(celda) {
+    const u = HO.usuarios.find(x => x.usuario_id === Number(celda.dataset.usuario));
+    hoEditor(celda, u.observacion, true, texto => { u.observacion = texto || null; });
+}
+
 async function hoGuardar() {
-    const cambios = hoPendientes().map(u => ({ usuario_id: u.usuario_id, dias: u.dias }));
+    const cambios = hoPendientes().map(u => ({
+        usuario_id: u.usuario_id, dias: u.dias, franjas: u.franjas,
+        ...(hoObsPendiente(u) ? { observacion: u.observacion || "" } : {}),
+    }));
     if (!cambios.length) return;
     const boton = document.getElementById("ho-guardar");
     boton.disabled = true;
@@ -116,7 +177,8 @@ async function hoGuardar() {
             method: "PUT", headers: hoHeaders(true), body: JSON.stringify({ cambios }),
         });
         if (!res.ok) throw new Error(await hoError(res, "No se pudo guardar."));
-        cambios.forEach(c => { HO.guardado[c.usuario_id] = [...c.dias]; });
+        // Recargamos para ver los horarios tal como quedaron guardados (sin la R, etc.)
+        await hoCargar();
         hoToast(`Guardado: ${cambios.length} persona${cambios.length > 1 ? "s" : ""}.`);
     } catch (e) {
         hoToast(e.message || "No se pudo conectar con el servidor. Los cambios siguen sin guardar.", true);
@@ -127,19 +189,23 @@ async function hoGuardar() {
 
 function hoDescartar() {
     if (!confirm("¿Descartar los cambios sin guardar?")) return;
-    HO.usuarios.forEach(u => { u.dias = [...HO.guardado[u.usuario_id]]; });
+    HO.usuarios.forEach(u => {
+        const g = HO.guardado[u.usuario_id];
+        u.dias = [...g.dias]; u.franjas = [...g.franjas]; u.observacion = g.observacion || null;
+    });
     hoPintar();
 }
 
 async function hoCargar() {
     const aviso = msg => {
-        document.getElementById("ho-cuerpo").innerHTML = `<tr><td colspan="8" class="ho-aviso">${escapeHTML(msg)}</td></tr>`;
+        document.getElementById("ho-cuerpo").innerHTML = `<tr><td colspan="9" class="ho-aviso">${escapeHTML(msg)}</td></tr>`;
     };
     try {
         const res = await fetch("/api/rrhh/home-office", { headers: hoHeaders() });
         if (!res.ok) { aviso(await hoError(res, "No se pudo cargar el tablero.")); return; }
         HO.usuarios = await res.json();
-        HO.guardado = Object.fromEntries(HO.usuarios.map(u => [u.usuario_id, [...u.dias]]));
+        HO.usuarios.forEach(u => { u.franjas = u.franjas || [null, null, null, null, null]; });
+        HO.guardado = Object.fromEntries(HO.usuarios.map(u => [u.usuario_id, hoFoto(u)]));
         const areas = [...new Set(HO.usuarios.map(u => u.area || "Sin área"))];
         const selArea = document.getElementById("ho-area");
         const areaElegida = selArea.value;
@@ -373,9 +439,20 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("beforeunload", e => {
         if (hoPendientes().length) { e.preventDefault(); e.returnValue = ""; }
     });
+    // Clic simple: Home/Convocado (con una pequeña espera para no confundirlo con el doble clic)
+    let esperaClic = null;
     document.getElementById("ho-cuerpo").addEventListener("click", e => {
         const boton = e.target.closest("button.ho-marca");
-        if (boton) hoCambiar(boton);
+        if (!boton) return;
+        clearTimeout(esperaClic);
+        esperaClic = setTimeout(() => hoCambiar(boton), 250);
+    });
+    document.getElementById("ho-cuerpo").addEventListener("dblclick", e => {
+        clearTimeout(esperaClic);
+        const boton = e.target.closest("button.ho-marca");
+        if (boton) { hoEditarHorario(boton); return; }
+        const obs = e.target.closest("td.ho-col-obs");
+        if (obs && !obs.querySelector(".ho-editor")) hoEditarObservacion(obs);
     });
     hoCargar();
 });

@@ -41,6 +41,12 @@
         .ho-marca small { display: block; font-weight: 400; font-size: 0.85em; white-space: nowrap; }
         .ho-tabla th.dia, .ho-tabla td.dia { width: 120px; }
         .ho-obs { color: #8a4a0f; font-size: 0.8em; }
+        .ho-col-obs { min-width: 220px; max-width: 320px; }
+        td.ho-col-obs { font-size: 0.85em; color: #5d4037; cursor: text; white-space: pre-wrap; }
+        td.ho-col-obs.pendiente { outline: 2px dashed #d9822b; outline-offset: -3px; }
+        td.ho-col-obs:empty::before { content: "—"; color: #cfd8dc; }
+        .ho-editor { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85em; padding: 3px 4px; }
+        textarea.ho-editor { min-height: 54px; resize: vertical; }
         .ho-ne td { vertical-align: middle; }
         .ho-ne select { max-width: 280px; }
         .ho-color { display: inline-block; width: 14px; height: 14px; border: 1px solid #999; vertical-align: middle; margin-right: 4px; }
@@ -69,7 +75,8 @@
     <main class="dashboard-body">
         <h2>Tablero de Home Office</h2>
         <p>Horarios y días <b>Home</b> / <b>Convocado</b> de cada persona, cargados desde la planilla de RRHH (<b>Importar Excel</b>).
-           Hacé clic en un día para pasarlo de Convocado a Home (o al revés) y apretá <b>Guardar cambios</b>; la franja horaria se mantiene.</p>
+           Clic en un día: pasa de Convocado a Home (o al revés). <b>Doble clic</b> en un día o en Observaciones: editás el horario o el texto
+           (Enter para confirmar, Esc para cancelar). Al terminar, apretá <b>Guardar cambios</b>.</p>
         <div class="ho-leyenda">
             <span class="ho-marca home">Home</span> trabaja desde su casa (R en amarillo en la planilla)
             <span class="ho-marca convocado">Convocado</span> tiene que ir a la oficina
@@ -126,6 +133,7 @@
                         <th>Área / subsector</th>
                         <th class="dia">Lun</th><th class="dia">Mar</th><th class="dia">Mié</th>
                         <th class="dia">Jue</th><th class="dia">Vie</th>
+                        <th class="ho-col-obs">Observaciones</th>
                     </tr>
                 </thead>
                 <tbody id="ho-cuerpo"><tr><td colspan="8" class="ho-aviso">Cargando…</td></tr></tbody>
