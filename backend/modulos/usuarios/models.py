@@ -38,8 +38,8 @@ class User(Base):
     sector_id = Column(Integer, ForeignKey("sectores.id"), nullable=True)
     sector = relationship("Sector", back_populates="usuarios")
     puesto = Column(String, nullable=True)
-    # Código de régimen horario de RRHH ("Cód Reg"); texto libre hasta definir el catálogo
-    cod_reg = Column(String(20), nullable=True)
+    # Régimen del agente para RRHH ("Cód Reg"): "Nueva Carrera Administrativa", "Carrera Gerencial"…
+    cod_reg = Column(String(100), nullable=True)
     # `estado` es la fuente de verdad del ciclo de vida; `activo`/`aprobado` se mantienen
     # sincronizados (ver aplicar_estado) porque muchos módulos filtran por User.activo.
     estado = Column(String(20), default="PENDIENTE", nullable=False, server_default="PENDIENTE")

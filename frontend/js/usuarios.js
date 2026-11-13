@@ -16,6 +16,13 @@ async function cargarUsuarios() {
         if (!res.ok) throw new Error("No autorizado");
         
         usuariosGlobales = await res.json();
+        // Sugerencias del campo Cód Reg: los valores que ya se usan
+        const listaCodReg = document.getElementById("lista-cod-reg");
+        if (listaCodReg) {
+            const valores = [...new Set(["Nueva Carrera Administrativa", "Carrera Gerencial",
+                ...usuariosGlobales.map(u => u.cod_reg).filter(Boolean)])].sort();
+            listaCodReg.innerHTML = valores.map(v => `<option value="${esc(v)}"></option>`).join("");
+        }
         ordenarTabla('apellido', true); 
     } catch (error) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#dc3545; padding: 20px;"><strong>Acceso Denegado.</strong></td></tr>`;

@@ -285,6 +285,10 @@ async def importar_usuarios_excel(
                 continue
 
             cod_reg_excel = _texto_celda(row[col_cod_reg]) if col_cod_reg else None
+            if cod_reg_excel and len(cod_reg_excel) > 100:
+                errores.append(f"Fila {index + 2}: el Cód Reg supera los 100 caracteres; se dejó como estaba.")
+                cod_reg_excel = None if not col_cod_reg else (db.query(models.User.cod_reg).filter(
+                    (models.User.email == email) | (models.User.cuil == cuil)).scalar() or "")
 
             # Si el usuario ya existe, solo actualizamos su puesto y su Cód Reg (si cambiaron; vacío en el Excel los quita)
             usuario_existente = db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first()

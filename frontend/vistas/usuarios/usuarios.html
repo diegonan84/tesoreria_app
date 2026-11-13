@@ -18,6 +18,7 @@
             
             <div style="display: flex; gap: 10px;">
                 <!-- Input invisible para seleccionar el archivo -->
+                <datalist id="lista-cod-reg"></datalist>
                 <input type="file" id="file-import-usuarios" accept=".xlsx, .xls" style="display: none;" onchange="importarUsuariosExcel(event)">
                 
                 <button onclick="document.getElementById('file-import-usuarios').click()" style="background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
@@ -80,7 +81,7 @@
                 
                 <div><label style="font-size: 13px; font-weight: bold; color: #555;">Repartición</label><input type="text" id="edit-reparticion" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
                 <div><label style="font-size: 13px; font-weight: bold; color: #555;">Puesto / Función</label><input type="text" id="edit-puesto" placeholder="Ej: Analista Contable" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
-                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Cód Reg</label><input type="text" id="edit-cod-reg" maxlength="20" placeholder="Código de régimen horario" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Cód Reg</label><input type="text" id="edit-cod-reg" maxlength="100" list="lista-cod-reg" placeholder="Ej: Nueva Carrera Administrativa" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
 
                 <div style="grid-column: span 2;">
                     <label style="font-size: 13px; font-weight: bold; color: #555;">Sector (Opcional)</label>
@@ -137,7 +138,7 @@
                 
                 <div><label style="font-size: 13px; font-weight: bold; color: #555;">Repartición</label><input type="text" id="alta-reparticion" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
                 <div><label style="font-size: 13px; font-weight: bold; color: #555;">Puesto / Función</label><input type="text" id="alta-puesto" placeholder="Ej: Analista Contable" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
-                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Cód Reg</label><input type="text" id="alta-cod-reg" maxlength="20" placeholder="Código de régimen horario" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
+                <div><label style="font-size: 13px; font-weight: bold; color: #555;">Cód Reg</label><input type="text" id="alta-cod-reg" maxlength="100" list="lista-cod-reg" placeholder="Ej: Nueva Carrera Administrativa" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit;"></div>
 
                 <div style="grid-column: span 2;">
                     <label style="font-size: 13px; font-weight: bold; color: #555;">Sector (Opcional)</label>

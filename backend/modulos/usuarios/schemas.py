@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import Field, BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
 
@@ -41,7 +41,7 @@ class UserUpdate(BaseModel):
     email: str
     reparticion: str
     puesto: Optional[str] = None
-    cod_reg: Optional[str] = None
+    cod_reg: Optional[str] = Field(None, max_length=100)
     roles: List[str]
     sector_id: Optional[int] = None  # <-- Campo opcional agregado aquí
 
