@@ -21,7 +21,7 @@ from backend.modulos.usuarios.models import User
 from backend.modulos.auditoria.service import registrar_evento
 
 from . import schemas, excel_home_office
-from .models import Marcacion, HomeOfficeDia, DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO
+from .models import Marcacion, HomeOfficeDia, PeriodoSinControl, DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO
 
 PAGINAS_RRHH = ("RRHH_Fichadas", "RRHH_HomeOffice")
 
@@ -125,10 +125,12 @@ def tablero_home_office(db: Session = Depends(get_db)):
         .order_by(User.apellido, User.nombre).all()
     )
     dias = _semanas_guardadas(db)
+    sin_control = _sin_control_hoy(db)
     return [
         schemas.HomeOfficeUsuario(
             usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
             sector=u.sector.nombre if u.sector else None, dias=dias.get(u.id, _semana_por_defecto()),
+            sin_control=sin_control.get(u.id, sin_control.get(None)),
         )
         for u in usuarios
     ]
@@ -258,3 +260,76 @@ def guardar_home_office(
         usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
         sector=u.sector.nombre if u.sector else None, dias=nuevos,
     )
+
+
+
+# ---------------------------------------------------------------------------
+# Períodos sin control de Home / Convocado
+# ---------------------------------------------------------------------------
+def _fecha_corta(d: date) -> str:
+    return d.strftime("%d/%m/%Y")
+
+
+def _sin_control_hoy(db: Session) -> dict:
+    """{usuario_id | None: "Licencia hasta 20/11/2026"} con los períodos vigentes hoy."""
+    hoy = date.today()
+    vigentes = {}
+    for p in (db.query(PeriodoSinControl)
+              .filter(PeriodoSinControl.desde <= hoy, PeriodoSinControl.hasta >= hoy)
+              .order_by(PeriodoSinControl.hasta.desc())):
+        vigentes.setdefault(p.usuario_id, f"{p.motivo or 'Sin control'} hasta {_fecha_corta(p.hasta)}")
+    return vigentes
+
+
+def _periodo_out(p: PeriodoSinControl, u: Optional[User]) -> schemas.PeriodoSinControlOut:
+    hoy = date.today()
+    return schemas.PeriodoSinControlOut(
+        id=p.id, usuario_id=p.usuario_id, desde=p.desde, hasta=p.hasta, motivo=p.motivo,
+        persona=f"{u.apellido}, {u.nombre}" if u else "Todo el personal",
+        vigente=p.desde <= hoy <= p.hasta,
+    )
+
+
+@router.get("/sin-control", response_model=List[schemas.PeriodoSinControlOut], dependencies=[Depends(_home_office)])
+def listar_sin_control(incluir_vencidos: bool = False, db: Session = Depends(get_db)):
+    """Períodos vigentes y futuros (con incluir_vencidos=true, también los pasados)."""
+    q = db.query(PeriodoSinControl, User).outerjoin(User, PeriodoSinControl.usuario_id == User.id)
+    if not incluir_vencidos:
+        q = q.filter(PeriodoSinControl.hasta >= date.today())
+    return [_periodo_out(p, u) for p, u in q.order_by(PeriodoSinControl.desde, PeriodoSinControl.id)]
+
+
+@router.post("/sin-control", response_model=schemas.PeriodoSinControlOut)
+def crear_sin_control(
+    datos: schemas.PeriodoSinControlIn, request: Request,
+    db: Session = Depends(get_db), actual=Depends(_home_office),
+):
+    if datos.hasta < datos.desde:
+        raise HTTPException(status_code=400, detail="La fecha 'hasta' es anterior a 'desde'.")
+    u = None
+    if datos.usuario_id is not None:
+        u = db.query(User).filter(User.id == datos.usuario_id).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    p = PeriodoSinControl(usuario_id=datos.usuario_id, desde=datos.desde, hasta=datos.hasta,
+                          motivo=(datos.motivo or "").strip()[:150] or None, creado_por_id=actual.get("id"))
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    salida = _periodo_out(p, u)
+    _auditar(db, actual, request, f"Sin control Home/Convocado: {salida.persona}, "
+                                  f"{_fecha_corta(p.desde)} al {_fecha_corta(p.hasta)}" + (f" ({p.motivo})" if p.motivo else ""))
+    return salida
+
+
+@router.delete("/sin-control/{periodo_id}")
+def borrar_sin_control(periodo_id: int, request: Request, db: Session = Depends(get_db), actual=Depends(_home_office)):
+    p = db.query(PeriodoSinControl).filter(PeriodoSinControl.id == periodo_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Período no encontrado.")
+    u = db.query(User).filter(User.id == p.usuario_id).first() if p.usuario_id else None
+    texto = f"{_periodo_out(p, u).persona}, {_fecha_corta(p.desde)} al {_fecha_corta(p.hasta)}"
+    db.delete(p)
+    db.commit()
+    _auditar(db, actual, request, f"Se quitó el período sin control: {texto}")
+    return {"ok": True}

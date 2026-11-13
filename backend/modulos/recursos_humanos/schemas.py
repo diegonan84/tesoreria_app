@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -22,6 +22,8 @@ class HomeOfficeUsuario(BaseModel):
     sector: Optional[str] = None
     # Un valor por día de lunes a viernes: "HOME" o "CONVOCADO"
     dias: List[str] = ["CONVOCADO"] * 5
+    # Período sin control vigente hoy (propio o general), si hay
+    sin_control: Optional[str] = None
 
 
 class HomeOfficeIn(BaseModel):
@@ -35,3 +37,17 @@ class HomeOfficeCambio(BaseModel):
 
 class HomeOfficeLote(BaseModel):
     cambios: List[HomeOfficeCambio]
+
+
+
+class PeriodoSinControlIn(BaseModel):
+    usuario_id: Optional[int] = None  # null = todo el personal
+    desde: date
+    hasta: date
+    motivo: Optional[str] = None
+
+
+class PeriodoSinControlOut(PeriodoSinControlIn):
+    id: int
+    persona: str
+    vigente: bool

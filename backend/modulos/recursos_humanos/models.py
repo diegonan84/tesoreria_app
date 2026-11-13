@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -49,3 +49,18 @@ class HomeOfficeDia(Base):
     tipo = Column(String(12), nullable=False, default="HOME")  # HOME | CONVOCADO
     modificado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     fecha_modificacion = Column(DateTime, default=datetime.utcnow)
+
+
+
+class PeriodoSinControl(Base):
+    """Período en que no se controla Home / Convocado (licencias, comisiones, receso, etc.).
+    usuario_id null = aplica a todo el personal."""
+    __tablename__ = "rrhh_periodos_sin_control"
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=True, index=True)
+    desde = Column(Date, nullable=False, index=True)
+    hasta = Column(Date, nullable=False, index=True)
+    motivo = Column(String(150), nullable=True)
+    creado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)

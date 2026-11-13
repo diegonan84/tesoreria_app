@@ -71,8 +71,9 @@ function hoPintar() {
         cuerpo.innerHTML = `<tr><td colspan="8" class="ho-aviso">No hay personas para mostrar.</td></tr>`;
     } else {
         cuerpo.innerHTML = lista.map(u => `
-            <tr>
-                <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}</td>
+            <tr class="${u.sin_control ? "ho-sin-control" : ""}">
+                <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}
+                    ${u.sin_control ? `<br><span class="ho-sc-badge" title="No se controla Home / Convocado">⏸ ${escapeHTML(u.sin_control)}</span>` : ""}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
                 <td class="ho-sub">${escapeHTML(u.sector || "Sin sector")}</td>
                 ${HO_DIAS.map((_, d) => `<td class="dia">${hoBoton(u, d)}</td>`).join("")}
@@ -133,6 +134,11 @@ async function hoCargar() {
         const sectores = [...new Set(HO.usuarios.map(u => u.sector || "Sin sector"))].sort();
         document.getElementById("ho-sector").innerHTML = `<option value="">Todos</option>` +
             sectores.map(s => `<option>${escapeHTML(s)}</option>`).join("");
+        const sel = document.getElementById("sc-usuario");
+        const elegido = sel.value;
+        sel.innerHTML = `<option value="">Todo el personal</option>` + HO.usuarios.map(u =>
+            `<option value="${u.usuario_id}">${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}</option>`).join("");
+        sel.value = elegido;
         hoPintar();
     } catch (e) {
         aviso("No se pudo conectar con el servidor.");
@@ -219,7 +225,84 @@ async function hoImportar(archivo) {
     boton.disabled = false;
 }
 
+// ---------------------------------------------------------------------------
+// Períodos sin control
+// ---------------------------------------------------------------------------
+function scFecha(iso) {
+    const [a, m, d] = String(iso).split("-");
+    return `${d}/${m}/${a}`;
+}
+
+async function scCargar() {
+    const cuerpo = document.getElementById("sc-cuerpo");
+    try {
+        const res = await fetch("/api/rrhh/sin-control", { headers: hoHeaders() });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudieron cargar los períodos."));
+        const lista = await res.json();
+        const vigentes = lista.filter(p => p.vigente).length;
+        document.getElementById("ho-sc-cuenta").textContent = lista.length
+            ? `(${vigentes} vigente${vigentes === 1 ? "" : "s"}, ${lista.length - vigentes} a futuro)` : "";
+        cuerpo.innerHTML = lista.length ? lista.map(p => `
+            <tr>
+                <td>${escapeHTML(p.persona)}${p.vigente ? ` <span class="ho-sc-badge">vigente</span>` : ""}</td>
+                <td>${scFecha(p.desde)}</td><td>${scFecha(p.hasta)}</td>
+                <td>${escapeHTML(p.motivo || "—")}</td>
+                <td><button type="button" data-periodo="${p.id}" title="Quitar período">🗑</button></td>
+            </tr>`).join("")
+            : `<tr><td colspan="5" class="ho-aviso">No hay períodos vigentes ni a futuro.</td></tr>`;
+    } catch (e) {
+        cuerpo.innerHTML = `<tr><td colspan="5" class="ho-aviso">${escapeHTML(e.message)}</td></tr>`;
+    }
+}
+
+async function scAgregar() {
+    const usuario = document.getElementById("sc-usuario").value;
+    const desde = document.getElementById("sc-desde").value;
+    const hasta = document.getElementById("sc-hasta").value || desde;
+    if (!desde) { hoToast("Elegí la fecha desde.", true); return; }
+    try {
+        const res = await fetch("/api/rrhh/sin-control", {
+            method: "POST", headers: hoHeaders(true),
+            body: JSON.stringify({ usuario_id: usuario ? Number(usuario) : null, desde, hasta,
+                                   motivo: document.getElementById("sc-motivo").value }),
+        });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudo guardar el período."));
+        document.getElementById("sc-motivo").value = "";
+        hoToast("Período agregado.");
+        await scRefrescar();
+    } catch (e) {
+        hoToast(e.message, true);
+    }
+}
+
+async function scBorrar(id) {
+    if (!confirm("¿Quitar este período sin control?")) return;
+    try {
+        const res = await fetch(`/api/rrhh/sin-control/${id}`, { method: "DELETE", headers: hoHeaders() });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudo quitar el período."));
+        await scRefrescar();
+    } catch (e) {
+        hoToast(e.message, true);
+    }
+}
+
+// Recarga la lista de períodos y la marca "sin control" de cada persona, sin perder cambios pendientes
+async function scRefrescar() {
+    await scCargar();
+    const res = await fetch("/api/rrhh/home-office", { headers: hoHeaders() }).catch(() => null);
+    if (!res || !res.ok) return;
+    const nuevos = Object.fromEntries((await res.json()).map(u => [u.usuario_id, u.sin_control]));
+    HO.usuarios.forEach(u => { u.sin_control = nuevos[u.usuario_id] || null; });
+    hoPintar();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("sc-agregar").addEventListener("click", scAgregar);
+    document.getElementById("sc-cuerpo").addEventListener("click", e => {
+        const b = e.target.closest("button[data-periodo]");
+        if (b) scBorrar(b.dataset.periodo);
+    });
+    scCargar();
     document.getElementById("ho-exportar").addEventListener("click", e => hoExportar(e.currentTarget));
     document.getElementById("ho-importar").addEventListener("click", () => document.getElementById("ho-archivo").click());
     document.getElementById("ho-archivo").addEventListener("change", e => {
