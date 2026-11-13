@@ -29,14 +29,24 @@ function hoNormalizar(txt) {
     return String(txt || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
+const HO_TIPOS = { HOME: "Home", CONVOCADO: "Convocado" };
+const HO_SIGUIENTE = { "": "HOME", HOME: "CONVOCADO", CONVOCADO: null };
+
 function hoFiltrados() {
     const q = hoNormalizar(document.getElementById("ho-q").value.trim());
     const sector = document.getElementById("ho-sector").value;
-    const solo = document.getElementById("ho-solo").checked;
+    const mostrar = document.getElementById("ho-solo").value;
     return HO.usuarios.filter(u =>
         (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil}`).includes(q)) &&
         (!sector || (u.sector || "Sin sector") === sector) &&
-        (!solo || u.dias.length));
+        (!mostrar || (mostrar === "vacio" ? u.dias.every(t => !t) : u.dias.includes(mostrar))));
+}
+
+function hoBoton(u, d) {
+    const tipo = u.dias[d];
+    const clase = tipo ? tipo.toLowerCase() : "";
+    return `<button type="button" class="ho-marca ${clase}" data-usuario="${u.usuario_id}" data-dia="${d}"
+                title="${HO_DIAS[d]}: clic para cambiar">${tipo ? HO_TIPOS[tipo] : "—"}</button>`;
 }
 
 function hoPintar() {
@@ -50,33 +60,30 @@ function hoPintar() {
                 <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
                 <td class="ho-sub">${escapeHTML(u.sector || "Sin sector")}</td>
-                ${HO_DIAS.map((nombre, d) => `
-                    <td class="dia ${u.dias.includes(d) ? "casa" : ""}">
-                        <input type="checkbox" data-usuario="${u.usuario_id}" data-dia="${d}"
-                               title="${nombre}" ${u.dias.includes(d) ? "checked" : ""}>
-                    </td>`).join("")}
+                ${HO_DIAS.map((_, d) => `<td class="dia">${hoBoton(u, d)}</td>`).join("")}
             </tr>`).join("");
     }
 
-    // Totales del grupo filtrado: cuántos en casa y cuántos en la oficina cada día
-    const enCasa = HO_DIAS.map((_, d) => lista.filter(u => u.dias.includes(d)).length);
-    document.getElementById("ho-pie").innerHTML = `
-        <tr><td colspan="3">En casa (${lista.length} personas)</td>${enCasa.map(n => `<td class="dia">${n}</td>`).join("")}</tr>
-        <tr><td colspan="3">En la oficina</td>${enCasa.map(n => `<td class="dia">${lista.length - n}</td>`).join("")}</tr>`;
+    // Totales del grupo filtrado por día
+    const contar = tipo => HO_DIAS.map((_, d) => lista.filter(u => u.dias[d] === tipo).length);
+    const fila = (titulo, valores) => `<tr><td colspan="3">${titulo}</td>${valores.map(n => `<td class="dia">${n}</td>`).join("")}</tr>`;
+    document.getElementById("ho-pie").innerHTML =
+        fila(`Home (de ${lista.length} personas)`, contar("HOME")) + fila("Convocados", contar("CONVOCADO"));
 }
 
-async function hoCambiar(input) {
-    const u = HO.usuarios.find(x => x.usuario_id === Number(input.dataset.usuario));
-    const dia = Number(input.dataset.dia);
-    const dias = input.checked ? [...u.dias, dia] : u.dias.filter(d => d !== dia);
-    input.disabled = true;
+async function hoCambiar(boton) {
+    const u = HO.usuarios.find(x => x.usuario_id === Number(boton.dataset.usuario));
+    const d = Number(boton.dataset.dia);
+    const dias = [...u.dias];
+    dias[d] = HO_SIGUIENTE[dias[d] || ""];
+    boton.disabled = true;
     try {
         const res = await fetch(`/api/rrhh/home-office/${u.usuario_id}`, {
             method: "PUT", headers: hoHeaders(true), body: JSON.stringify({ dias }),
         });
         if (!res.ok) throw new Error(await hoError(res, "No se pudo guardar."));
         u.dias = (await res.json()).dias;
-        hoToast(`${u.apellido}: ${u.dias.length ? u.dias.map(d => HO_DIAS[d]).join(", ") : "presencial toda la semana"}`);
+        hoToast(`${u.apellido}, ${HO_DIAS[d]}: ${u.dias[d] ? HO_TIPOS[u.dias[d]] : "sin marcar"}`);
     } catch (e) {
         hoToast(e.message || "No se pudo conectar con el servidor.", true);
     }
@@ -104,8 +111,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("ho-q").addEventListener("input", hoPintar);
     document.getElementById("ho-sector").addEventListener("change", hoPintar);
     document.getElementById("ho-solo").addEventListener("change", hoPintar);
-    document.getElementById("ho-cuerpo").addEventListener("change", e => {
-        if (e.target.matches("input[type=checkbox]")) hoCambiar(e.target);
+    document.getElementById("ho-cuerpo").addEventListener("click", e => {
+        const boton = e.target.closest("button.ho-marca");
+        if (boton) hoCambiar(boton);
     });
     hoCargar();
 });

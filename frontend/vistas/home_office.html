@@ -11,8 +11,12 @@
         .ho-tabla th.dia, .ho-tabla td.dia { text-align: center; width: 90px; }
         .ho-tabla thead th { background: #f3f6f7; position: sticky; top: 0; }
         .ho-tabla tfoot td { font-weight: 600; background: #f3f6f7; }
-        .ho-tabla td.dia input { width: 18px; height: 18px; cursor: pointer; }
-        .ho-tabla td.dia.casa { background: #e3f2ef; }
+        .ho-marca { min-width: 84px; padding: 4px 8px; border-radius: 12px; border: 1px dashed #b8c4c9;
+                    background: transparent; color: #9aa8ae; cursor: pointer; font-size: 0.85em; }
+        .ho-marca.home { background: #e3f2ef; border: 1px solid #58a598; color: #2c6d62; font-weight: 600; }
+        .ho-marca.convocado { background: #fdeee0; border: 1px solid #d9822b; color: #8a4a0f; font-weight: 600; }
+        .ho-marca:disabled { opacity: .5; cursor: wait; }
+        .ho-leyenda { display: flex; gap: 10px; align-items: center; color: #6b7c85; font-size: 0.9em; margin-top: 8px; }
         .ho-sub { color: #6b7c85; font-size: 0.85em; }
         .ho-aviso { text-align: center; color: #6b7c85; padding: 20px; }
         #ho-toast { position: fixed; bottom: 24px; right: 24px; background: #1a3644; color: #fff; padding: 10px 16px;
@@ -29,14 +33,23 @@
 
     <main class="dashboard-body">
         <h2>Tablero de Home Office</h2>
-        <p>Tildá los días de la semana en que cada persona trabaja desde su casa. Los cambios se guardan al instante.</p>
+        <p>Hacé clic en cada día para marcarlo: <b>Home</b> → <b>Convocado</b> → sin marcar. Los cambios se guardan al instante.</p>
+        <div class="ho-leyenda">
+            <span class="ho-marca home">Home</span> trabaja desde su casa
+            <span class="ho-marca convocado">Convocado</span> tiene que ir a la oficina
+        </div>
 
         <div class="card ho-filtros">
             <label style="flex:1; min-width:220px;">Buscar<br>
                 <input type="search" id="ho-q" placeholder="Nombre, apellido o CUIL…" style="width:100%;">
             </label>
             <label>Sector<br><select id="ho-sector"><option value="">Todos</option></select></label>
-            <label><input type="checkbox" id="ho-solo"> Solo con home office</label>
+            <label>Mostrar<br><select id="ho-solo">
+                <option value="">Todos</option>
+                <option value="HOME">Con algún día Home</option>
+                <option value="CONVOCADO">Con algún día Convocado</option>
+                <option value="vacio">Sin nada marcado</option>
+            </select></label>
         </div>
 
         <div class="card" style="margin-top: 16px; padding: 20px; overflow-x:auto;">

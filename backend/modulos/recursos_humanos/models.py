@@ -31,16 +31,19 @@ class Marcacion(Base):
 
 # Días de la semana del tablero (0 = lunes ... 4 = viernes)
 DIAS_SEMANA = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes")
+# Cómo se marca cada día en el tablero (un día sin fila = sin marcar)
+TIPOS_DIA = {"HOME": "Home", "CONVOCADO": "Convocado"}
 
 
 class HomeOfficeDia(Base):
-    """Día fijo de la semana en que el usuario trabaja desde su casa.
-    Una fila por usuario y día; sin filas = todos los días presencial."""
+    """Marca de un día de la semana para un usuario: HOME (trabaja desde su casa) o
+    CONVOCADO (tiene que ir a la oficina). Una fila por usuario y día; sin fila = sin marcar."""
     __tablename__ = "rrhh_home_office"
     __table_args__ = (UniqueConstraint("usuario_id", "dia_semana", name="uq_rrhh_home_office_usuario_dia"),)
 
     id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
     dia_semana = Column(Integer, nullable=False)  # 0 = lunes ... 4 = viernes
+    tipo = Column(String(12), nullable=False, default="HOME")  # HOME | CONVOCADO
     modificado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     fecha_modificacion = Column(DateTime, default=datetime.utcnow)

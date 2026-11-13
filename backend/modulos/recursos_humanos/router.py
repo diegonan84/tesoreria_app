@@ -20,7 +20,7 @@ from backend.modulos.usuarios.models import User
 from backend.modulos.auditoria.service import registrar_evento
 
 from . import schemas
-from .models import Marcacion, HomeOfficeDia, DIAS_SEMANA
+from .models import Marcacion, HomeOfficeDia, DIAS_SEMANA, TIPOS_DIA
 
 PAGINAS_RRHH = ("RRHH_Fichadas", "RRHH_HomeOffice")
 
@@ -89,19 +89,20 @@ def listar_marcaciones(
 # ---------------------------------------------------------------------------
 @router.get("/home-office", response_model=List[schemas.HomeOfficeUsuario], dependencies=[Depends(_home_office)])
 def tablero_home_office(db: Session = Depends(get_db)):
-    """Usuarios activos con sus días fijos de home office."""
+    """Usuarios activos con la marca de cada día (Home / Convocado / sin marcar)."""
     usuarios = (
         db.query(User).options(joinedload(User.sector))
         .filter(User.estado == "ACTIVO")
         .order_by(User.apellido, User.nombre).all()
     )
     dias = {}
-    for usuario_id, dia in db.query(HomeOfficeDia.usuario_id, HomeOfficeDia.dia_semana):
-        dias.setdefault(usuario_id, []).append(dia)
+    for usuario_id, dia, tipo in db.query(HomeOfficeDia.usuario_id, HomeOfficeDia.dia_semana, HomeOfficeDia.tipo):
+        if 0 <= dia < len(DIAS_SEMANA):
+            dias.setdefault(usuario_id, [None] * len(DIAS_SEMANA))[dia] = tipo
     return [
         schemas.HomeOfficeUsuario(
             usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
-            sector=u.sector.nombre if u.sector else None, dias=sorted(dias.get(u.id, [])),
+            sector=u.sector.nombre if u.sector else None, dias=dias.get(u.id, [None] * len(DIAS_SEMANA)),
         )
         for u in usuarios
     ]
@@ -112,20 +113,23 @@ def guardar_home_office(
     usuario_id: int, datos: schemas.HomeOfficeIn, request: Request,
     db: Session = Depends(get_db), actual=Depends(_home_office),
 ):
-    """Reemplaza los días de home office del usuario (lista vacía = todos presencial)."""
+    """Reemplaza las marcas de la semana del usuario (5 valores: HOME, CONVOCADO o null)."""
     u = db.query(User).options(joinedload(User.sector)).filter(User.id == usuario_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    nuevos = sorted(set(datos.dias))
-    if any(d not in range(len(DIAS_SEMANA)) for d in nuevos):
-        raise HTTPException(status_code=400, detail="Los días válidos son de lunes (0) a viernes (4).")
+    nuevos = [(t or "").strip().upper() or None for t in datos.dias]
+    if len(nuevos) != len(DIAS_SEMANA):
+        raise HTTPException(status_code=400, detail="Hay que mandar un valor por cada día de lunes a viernes.")
+    if any(t and t not in TIPOS_DIA for t in nuevos):
+        raise HTTPException(status_code=400, detail="Cada día puede ser Home, Convocado o quedar sin marcar.")
 
     db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id).delete()
-    for d in nuevos:
-        db.add(HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, modificado_por_id=actual.get("id")))
+    for d, tipo in enumerate(nuevos):
+        if tipo:
+            db.add(HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, tipo=tipo, modificado_por_id=actual.get("id")))
     db.commit()
 
-    texto = ", ".join(DIAS_SEMANA[d] for d in nuevos) or "ninguno (presencial)"
+    texto = ", ".join(f"{DIAS_SEMANA[d]} {TIPOS_DIA[t]}" for d, t in enumerate(nuevos) if t) or "sin marcar"
     registrar_evento(
         db, usuario_id=actual.get("id"), accion="RRHH_HOME_OFFICE",
         detalle=f"Home office de {u.apellido}, {u.nombre}: {texto}",

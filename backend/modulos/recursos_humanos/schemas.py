@@ -20,8 +20,9 @@ class HomeOfficeUsuario(BaseModel):
     nombre: str
     cuil: str
     sector: Optional[str] = None
-    dias: List[int] = []
+    # Un valor por día de lunes a viernes: "HOME", "CONVOCADO" o null (sin marcar)
+    dias: List[Optional[str]] = [None] * 5
 
 
 class HomeOfficeIn(BaseModel):
-    dias: List[int]
+    dias: List[Optional[str]]
