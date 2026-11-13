@@ -30,15 +30,17 @@ function hoNormalizar(txt) {
     return String(txt || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-const HO_TIPOS = { HOME: "Home", CONVOCADO: "Convocado" };
+const HO_TIPOS = { HOME: "Home", CONVOCADO: "Convocado", SIN_HORARIO: "—" };
 const HO_SIGUIENTE = { HOME: "CONVOCADO", CONVOCADO: "HOME" };
 
 function hoFiltrados() {
     const q = hoNormalizar(document.getElementById("ho-q").value.trim());
     const sector = document.getElementById("ho-sector").value;
+    const area = document.getElementById("ho-area").value;
     const mostrar = document.getElementById("ho-solo").value;
     return HO.usuarios.filter(u =>
-        (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil}`).includes(q)) &&
+        (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil} ${u.cod_reg || ""}`).includes(q)) &&
+        (!area || (u.area || "Sin área") === area) &&
         (!sector || (u.sector || "Sin sector") === sector) &&
         (!mostrar || (mostrar === "sinhome" ? !u.dias.includes("HOME") : u.dias.includes(mostrar))));
 }
@@ -59,9 +61,13 @@ function hoBarra() {
 
 function hoBoton(u, d) {
     const tipo = u.dias[d] || "CONVOCADO";
+    const franja = (u.franjas || [])[d];
+    if (tipo === "SIN_HORARIO") {
+        return `<span class="ho-marca sin_horario" title="${HO_DIAS[d]}: sin horario en la planilla">—</span>`;
+    }
     const pendiente = tipo !== HO.guardado[u.usuario_id][d] ? " pendiente" : "";
     return `<button type="button" class="ho-marca ${tipo.toLowerCase()}${pendiente}" data-usuario="${u.usuario_id}" data-dia="${d}"
-                title="${HO_DIAS[d]}: clic para cambiar${pendiente ? " (sin guardar)" : ""}">${HO_TIPOS[tipo]}</button>`;
+                title="${HO_DIAS[d]}: clic para cambiar${pendiente ? " (sin guardar)" : ""}">${HO_TIPOS[tipo]}${franja ? `<small>${escapeHTML(franja)}</small>` : ""}</button>`;
 }
 
 function hoPintar() {
@@ -73,9 +79,11 @@ function hoPintar() {
         cuerpo.innerHTML = lista.map(u => `
             <tr class="${u.sin_control ? "ho-sin-control" : ""}">
                 <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}
+                    ${u.cod_reg ? `<span class="ho-sub"> · Cód Reg ${escapeHTML(u.cod_reg)}</span>` : ""}
+                    ${u.observacion ? `<br><span class="ho-obs">${escapeHTML(u.observacion)}</span>` : ""}
                     ${u.sin_control ? `<br><span class="ho-sc-badge" title="No se controla Home / Convocado">⏸ ${escapeHTML(u.sin_control)}</span>` : ""}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
-                <td class="ho-sub">${escapeHTML(u.sector || "Sin sector")}</td>
+                <td class="ho-sub">${escapeHTML(u.area || "Sin área")}${u.subsector ? `<br>${escapeHTML(u.subsector)}` : ""}</td>
                 ${HO_DIAS.map((_, d) => `<td class="dia">${hoBoton(u, d)}</td>`).join("")}
             </tr>`).join("");
     }
@@ -92,6 +100,7 @@ function hoPintar() {
 function hoCambiar(boton) {
     const u = HO.usuarios.find(x => x.usuario_id === Number(boton.dataset.usuario));
     const d = Number(boton.dataset.dia);
+    if (u.dias[d] === "SIN_HORARIO") return;
     u.dias[d] = HO_SIGUIENTE[u.dias[d] || "CONVOCADO"];
     hoPintar();
 }
@@ -131,6 +140,11 @@ async function hoCargar() {
         if (!res.ok) { aviso(await hoError(res, "No se pudo cargar el tablero.")); return; }
         HO.usuarios = await res.json();
         HO.guardado = Object.fromEntries(HO.usuarios.map(u => [u.usuario_id, [...u.dias]]));
+        const areas = [...new Set(HO.usuarios.map(u => u.area || "Sin área"))];
+        const selArea = document.getElementById("ho-area");
+        const areaElegida = selArea.value;
+        selArea.innerHTML = `<option value="">Todas</option>` + areas.map(a => `<option>${escapeHTML(a)}</option>`).join("");
+        selArea.value = areaElegida;
         const sectores = [...new Set(HO.usuarios.map(u => u.sector || "Sin sector"))].sort();
         document.getElementById("ho-sector").innerHTML = `<option value="">Todos</option>` +
             sectores.map(s => `<option>${escapeHTML(s)}</option>`).join("");
@@ -149,7 +163,7 @@ async function hoExportar(boton) {
     if (hoPendientes().length) hoToast("Ojo: el Excel sale con lo guardado; tenés cambios sin guardar.", true);
     boton.disabled = true;
     try {
-        const res = await fetch("/api/rrhh/home-office/exportar", { headers: hoHeaders() });
+        const res = await fetch("/api/rrhh/horarios/exportar", { headers: hoHeaders() });
         if (!res.ok) throw new Error(await hoError(res, "No se pudo exportar."));
         const nombre = (res.headers.get("Content-Disposition") || "").match(/filename=([^;]+)/);
         const url = URL.createObjectURL(await res.blob());
@@ -162,32 +176,68 @@ async function hoExportar(boton) {
     boton.disabled = false;
 }
 
-async function hoEnviarExcel(archivo, simular) {
+async function hoEnviarExcel(archivo, simular, vinculos = {}) {
     const datos = new FormData();
     datos.append("archivo", archivo);
-    const res = await fetch(`/api/rrhh/home-office/importar?simular=${simular}`, { method: "POST", headers: hoHeaders(), body: datos });
+    datos.append("vinculos", JSON.stringify(vinculos));
+    const res = await fetch(`/api/rrhh/horarios/importar?simular=${simular}`, { method: "POST", headers: hoHeaders(), body: datos });
     if (!res.ok) throw new Error(await hoError(res, "No se pudo leer el Excel."));
     return res.json();
 }
 
+function hoTextoDia(d) {
+    if (d.tipo === "SIN_HORARIO") return "—";
+    return `${HO_TIPOS[d.tipo]}${d.texto ? ` ${d.texto}` : ""}`;
+}
+
 function hoTablaComparacion(diferencias) {
     if (!diferencias.length) return "";
-    const celda = (antes, despues) => antes === despues
-        ? `<td class="ho-igual">${HO_TIPOS[despues]}</td>`
-        : `<td class="ho-cambio ${despues.toLowerCase()}" title="Antes: ${HO_TIPOS[antes]}">${HO_TIPOS[antes]} → ${HO_TIPOS[despues]}</td>`;
-    return `<div class="ho-comparacion"><table>
+    const celda = (antes, despues) => {
+        const igual = antes.tipo === despues.tipo && (antes.texto || "") === (despues.texto || "");
+        return igual
+            ? `<td class="ho-igual">${escapeHTML(hoTextoDia(despues))}</td>`
+            : `<td class="ho-cambio ${despues.tipo.toLowerCase()}" title="Antes: ${escapeHTML(hoTextoDia(antes))}">${escapeHTML(hoTextoDia(despues))}</td>`;
+    };
+    return `<details open><summary>Cambios por persona (${diferencias.length})</summary><div class="ho-comparacion"><table>
         <thead><tr><th>Persona</th>${HO_DIAS.map(d => `<th>${d.slice(0, 3)}</th>`).join("")}</tr></thead>
         <tbody>${diferencias.map(x => `<tr>
-            <td>${escapeHTML(x.apellido)}, ${escapeHTML(x.nombre)} <span class="ho-sub">${escapeHTML(x.cuil)}</span></td>
+            <td>${escapeHTML(x.nombre)} <span class="ho-sub">${escapeHTML(x.hoja)}</span></td>
             ${x.despues.map((t, d) => celda(x.antes[d], t)).join("")}</tr>`).join("")}</tbody>
-    </table></div>`;
+    </table></div></details>`;
 }
 
-function hoListaProblemas(problemas) {
-    return problemas.length ? `<ul>${problemas.map(p => `<li>${escapeHTML(p)}</li>`).join("")}</ul>` : "";
+function hoListaAvisos(avisos) {
+    return avisos.length ? `<details><summary>Avisos (${avisos.length})</summary><ul>${avisos.map(p => `<li>${escapeHTML(p)}</li>`).join("")}</ul></details>` : "";
 }
 
-// Paso 1: comparar el Excel con lo guardado (no graba nada). Paso 2: "Aplicar importación".
+function hoNoEncontrados(lista) {
+    if (!lista.length) return "";
+    const opcionesTodos = HO.usuarios.map(u => `<option value="${u.usuario_id}">${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}</option>`).join("");
+    return `<details open><summary>Sin vincular (${lista.length}): elegí a quién corresponde o dejalo sin importar</summary>
+        <table class="ho-sc-lista ho-ne"><tbody>${lista.map(x => `<tr>
+            <td>${escapeHTML(x.nombre)} <span class="ho-sub">${escapeHTML(x.hoja)}, fila ${x.fila}</span></td>
+            <td><select data-clave="${escapeHTML(x.clave)}">
+                <option value="">— No importar —</option>
+                ${x.candidatos.length ? `<optgroup label="Sugeridos">${x.candidatos.map(c => `<option value="${c.id}">${escapeHTML(c.nombre)}</option>`).join("")}</optgroup>` : ""}
+                <optgroup label="Todos los usuarios">${opcionesTodos}</optgroup>
+            </select></td></tr>`).join("")}</tbody></table></details>`;
+}
+
+function hoColores(colores) {
+    if (!colores.length) return "";
+    return `<details><summary>Colores de nombre encontrados (${colores.length}), para definir el Cód Reg</summary>
+        <table class="ho-sc-lista"><tbody>${colores.map(c => `<tr>
+            <td><span class="ho-color" style="background:#${escapeHTML(c.color)}"></span>#${escapeHTML(c.color)}</td>
+            <td>${c.cantidad} persona(s)</td><td class="ho-sub">${c.ejemplos.map(escapeHTML).join("; ")}</td></tr>`).join("")}</tbody></table></details>`;
+}
+
+function hoVinculosElegidos() {
+    const v = {};
+    document.querySelectorAll("#ho-resultado select[data-clave]").forEach(s => { if (s.value) v[s.dataset.clave] = Number(s.value); });
+    return v;
+}
+
+// Paso 1: comparar la planilla con lo guardado (no graba nada). Paso 2: "Aplicar importación".
 async function hoImportar(archivo) {
     if (!archivo) return;
     if (hoPendientes().length && !confirm("Tenés cambios sin guardar en pantalla: la importación los va a reemplazar. ¿Seguir?")) return;
@@ -196,23 +246,27 @@ async function hoImportar(archivo) {
     boton.disabled = true;
     try {
         const r = await hoEnviarExcel(archivo, true);
-        caja.innerHTML = `<b>Comparación de "${escapeHTML(archivo.name)}" con lo guardado:</b>
-            ${r.actualizados} persona(s) cambian, ${r.sin_cambios} quedan igual. Todavía no se guardó nada.` +
-            hoTablaComparacion(r.diferencias) + hoListaProblemas(r.problemas) +
+        caja.innerHTML = `<b>Comparación de "${escapeHTML(archivo.name)}" con lo guardado</b> (todavía no se guardó nada):<br>
+            ${r.personas} personas en ${r.hojas.length} hojas · ${r.vinculados} vinculadas · ${r.actualizados} con cambios ·
+            ${r.sin_cambios} iguales · ${r.no_encontrados.length} sin vincular.` +
+            hoNoEncontrados(r.no_encontrados) + hoTablaComparacion(r.diferencias) + hoListaAvisos(r.avisos) + hoColores(r.colores) +
             `<div class="ho-resultado-acciones">
-                ${r.actualizados ? `<button type="button" id="ho-aplicar">Aplicar importación</button>` : ""}
-                <button type="button" id="ho-cancelar">${r.actualizados ? "Cancelar" : "Cerrar"}</button>
+                <button type="button" id="ho-aplicar">Aplicar importación</button>
+                <button type="button" id="ho-cancelar">Cancelar</button>
             </div>`;
         caja.style.display = "block";
         caja.scrollIntoView({ behavior: "smooth", block: "start" });
         document.getElementById("ho-cancelar").onclick = () => { caja.style.display = "none"; };
         const aplicar = document.getElementById("ho-aplicar");
-        if (aplicar) aplicar.onclick = async () => {
+        aplicar.onclick = async () => {
             aplicar.disabled = true;
             try {
-                const f = await hoEnviarExcel(archivo, false);
-                caja.innerHTML = `<b>Importación aplicada:</b> ${f.actualizados} persona(s) actualizada(s), ${f.sin_cambios} sin cambios.` +
-                    hoTablaComparacion(f.diferencias) + hoListaProblemas(f.problemas);
+                const f = await hoEnviarExcel(archivo, false, hoVinculosElegidos());
+                caja.innerHTML = `<b>Importación aplicada:</b> ${f.vinculados} personas cargadas, ${f.actualizados} con cambios, ` +
+                    `${f.no_encontrados.length} sin vincular (no se importaron).` +
+                    hoListaAvisos(f.avisos) +
+                    `<div class="ho-resultado-acciones"><button type="button" id="ho-cerrar">Cerrar</button></div>`;
+                document.getElementById("ho-cerrar").onclick = () => { caja.style.display = "none"; };
                 await hoCargar();
             } catch (e) {
                 aplicar.disabled = false;
@@ -311,6 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.getElementById("ho-q").addEventListener("input", hoPintar);
     document.getElementById("ho-sector").addEventListener("change", hoPintar);
+    document.getElementById("ho-area").addEventListener("change", hoPintar);
     document.getElementById("ho-solo").addEventListener("change", hoPintar);
     document.getElementById("ho-guardar").addEventListener("click", hoGuardar);
     document.getElementById("ho-descartar").addEventListener("click", hoDescartar);

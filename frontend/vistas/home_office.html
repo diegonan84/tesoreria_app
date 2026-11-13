@@ -37,6 +37,13 @@
         tr.ho-sin-control .ho-marca { opacity: .45; }
         .ho-marca:disabled { opacity: .5; cursor: wait; }
         .ho-marca.pendiente { outline: 2px dashed #d9822b; outline-offset: 2px; }
+        .ho-marca.sin_horario { background: transparent; border: 1px dashed #cfd8dc; color: #b0bec5; cursor: default; }
+        .ho-marca small { display: block; font-weight: 400; font-size: 0.85em; white-space: nowrap; }
+        .ho-tabla th.dia, .ho-tabla td.dia { width: 120px; }
+        .ho-obs { color: #8a4a0f; font-size: 0.8em; }
+        .ho-ne td { vertical-align: middle; }
+        .ho-ne select { max-width: 280px; }
+        .ho-color { display: inline-block; width: 14px; height: 14px; border: 1px solid #999; vertical-align: middle; margin-right: 4px; }
         .ho-barra { position: sticky; top: 0; z-index: 5; margin-top: 16px; padding: 12px 16px; display: flex;
                     align-items: center; gap: 12px; flex-wrap: wrap; }
         .ho-barra.con-cambios { background: #fff7ec; border: 1px solid #d9822b; }
@@ -61,9 +68,10 @@
 
     <main class="dashboard-body">
         <h2>Tablero de Home Office</h2>
-        <p>Todos arrancan <b>Convocados</b>. Hacé clic en un día para pasarlo a <b>Home</b> (y otro clic lo vuelve a Convocado). Cuando termines, apretá <b>Guardar cambios</b>.</p>
+        <p>Horarios y días <b>Home</b> / <b>Convocado</b> de cada persona, cargados desde la planilla de RRHH (<b>Importar Excel</b>).
+           Hacé clic en un día para pasarlo de Convocado a Home (o al revés) y apretá <b>Guardar cambios</b>; la franja horaria se mantiene.</p>
         <div class="ho-leyenda">
-            <span class="ho-marca home">Home</span> trabaja desde su casa
+            <span class="ho-marca home">Home</span> trabaja desde su casa (R en amarillo en la planilla)
             <span class="ho-marca convocado">Convocado</span> tiene que ir a la oficina
         </div>
 
@@ -71,6 +79,7 @@
             <label style="flex:1; min-width:220px;">Buscar<br>
                 <input type="search" id="ho-q" placeholder="Nombre, apellido o CUIL…" style="width:100%;">
             </label>
+            <label>Área<br><select id="ho-area"><option value="">Todas</option></select></label>
             <label>Sector<br><select id="ho-sector"><option value="">Todos</option></select></label>
             <label>Mostrar<br><select id="ho-solo">
                 <option value="">Todos</option>
@@ -114,7 +123,7 @@
                     <tr>
                         <th>Apellido y nombre</th>
                         <th>CUIL</th>
-                        <th>Sector</th>
+                        <th>Área / subsector</th>
                         <th class="dia">Lun</th><th class="dia">Mar</th><th class="dia">Mié</th>
                         <th class="dia">Jue</th><th class="dia">Vie</th>
                     </tr>

@@ -15,12 +15,13 @@ from typing import Optional
 _HORA = r"(\d{1,2})(?:\s*[:.,h]\s*(\d{2}))?"
 _RANGO = re.compile(_HORA + r"\s*(?:hs\.?)?\s*(?:a|-|–|al|hasta)\s*" + _HORA + r"\s*(?:hs\.?)?", re.I)
 # "R" suelta como marca de remoto: al principio ("R:", "R ") o al final ("- R", " R")
-_MARCA_R = re.compile(r"(?:^\s*R\s*[:\-.]?\s+|^\s*R\s*:|[\s\-–(]R\)?\s*$|^\s*R\s*$)", re.I)
+_MARCA_R = re.compile(r"(?:^\s*R\s*[:\-–.]?\s*(?=\d)|^\s*R\s*[:\-–.]?\s+|^\s*R\s*:|[\s\-–(]R\)?\s*$|^\s*R\s*$)", re.I)
 
 
 @dataclass
 class Franja:
     texto: str
+    limpio: str = ""                 # el texto sin la marca R (lo que se guarda como franja)
     lugar: Optional[str] = None
     desde: Optional[time] = None
     hasta: Optional[time] = None
@@ -53,6 +54,7 @@ def leer_franja(valor) -> Optional[Franja]:
     if _MARCA_R.search(resto):
         f.remoto = True
         resto = _MARCA_R.sub(" ", resto).strip(" -–:")
+    f.limpio = re.sub(r"\s+", " ", resto).strip()
 
     m = _RANGO.search(resto)
     if m:

@@ -7,12 +7,14 @@ import unicodedata
 from typing import Iterable, List, Optional, Tuple
 
 # Palabras que no son parte del nombre (cargos o siglas entre paréntesis ya se quitan aparte)
-_IGNORAR = {"DE", "DEL", "LA", "LAS", "LOS", "Y", "DR", "DRA", "LIC", "CDOR", "CDORA", "ING", "SR", "SRA"}
+_IGNORAR = {"DE", "DEL", "LA", "LAS", "LOS", "Y", "DR", "DRA", "LIC", "CDOR", "CDORA", "ING", "SR", "SRA",
+            "GO", "SGO"}  # cargos sin paréntesis: "PROVENZANO, MAYRA DANIELA S.G.O."
 
 
 def normalizar(texto) -> str:
     texto = unicodedata.normalize("NFD", str(texto or "")).encode("ascii", "ignore").decode().upper()
     texto = re.sub(r"\([^)]*\)", " ", texto)          # (G.O.), (SGO), (S.G.O.)
+    texto = re.sub(r"['´`’]", "", texto)               # D'AMICO → DAMICO
     texto = re.sub(r"[^A-Z ]", " ", texto)            # comas, puntos, guiones, números
     return re.sub(r"\s+", " ", texto).strip()
 

@@ -10,7 +10,7 @@ y Administrador entra a todo.
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -20,8 +20,11 @@ from backend.modulos.auth.dependencies import verificar_usuario_autenticado
 from backend.modulos.usuarios.models import User
 from backend.modulos.auditoria.service import registrar_evento
 
-from . import schemas, excel_home_office
-from .models import Marcacion, HomeOfficeDia, PeriodoSinControl, DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO
+import json
+
+from . import schemas, excel_home_office, excel_horarios, nombres
+from .models import (Marcacion, HomeOfficeDia, PeriodoSinControl, PersonalHorario,
+                     DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO)
 
 PAGINAS_RRHH = ("RRHH_Fichadas", "RRHH_HomeOffice")
 
@@ -110,10 +113,26 @@ def _semanas_guardadas(db: Session) -> dict:
     return semanas
 
 
+def _franjas_guardadas(db: Session) -> dict:
+    """{usuario_id: [texto de la franja lunes..viernes]}"""
+    salida = {}
+    for usuario_id, dia, franja in db.query(HomeOfficeDia.usuario_id, HomeOfficeDia.dia_semana, HomeOfficeDia.franja):
+        if 0 <= dia < len(DIAS_SEMANA):
+            salida.setdefault(usuario_id, [None] * len(DIAS_SEMANA))[dia] = franja
+    return salida
+
+
 def _guardar_semana(db: Session, usuario_id: int, dias: List[str], actual: dict):
-    db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id).delete()
+    """Cambia Home / Convocado de cada día conservando la franja horaria cargada."""
+    filas = {f.dia_semana: f for f in db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id)}
     for d, tipo in enumerate(dias):
-        db.add(HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, tipo=tipo, modificado_por_id=actual.get("id")))
+        fila = filas.get(d)
+        if fila is None:
+            db.add(HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, tipo=tipo, modificado_por_id=actual.get("id")))
+        elif fila.tipo != tipo:
+            fila.tipo = tipo
+            fila.modificado_por_id = actual.get("id")
+            fila.fecha_modificacion = datetime.utcnow()
 
 
 @router.get("/home-office", response_model=List[schemas.HomeOfficeUsuario], dependencies=[Depends(_home_office)])
@@ -126,11 +145,20 @@ def tablero_home_office(db: Session = Depends(get_db)):
     )
     dias = _semanas_guardadas(db)
     sin_control = _sin_control_hoy(db)
+    franjas = _franjas_guardadas(db)
+    planilla = {p.usuario_id: p for p in db.query(PersonalHorario)}
+    usuarios.sort(key=lambda u: (planilla[u.id].orden if u.id in planilla and planilla[u.id].orden is not None else 10**9,
+                                 (u.apellido or "").upper(), (u.nombre or "").upper()))
     return [
         schemas.HomeOfficeUsuario(
             usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
             sector=u.sector.nombre if u.sector else None, dias=dias.get(u.id, _semana_por_defecto()),
             sin_control=sin_control.get(u.id, sin_control.get(None)),
+            franjas=franjas.get(u.id, [None] * len(DIAS_SEMANA)),
+            area=planilla[u.id].area if u.id in planilla else None,
+            subsector=planilla[u.id].subsector if u.id in planilla else None,
+            observacion=planilla[u.id].observacion if u.id in planilla else None,
+            cod_reg=u.cod_reg,
         )
         for u in usuarios
     ]
@@ -333,3 +361,137 @@ def borrar_sin_control(periodo_id: int, request: Request, db: Session = Depends(
     db.commit()
     _auditar(db, actual, request, f"Se quitó el período sin control: {texto}")
     return {"ok": True}
+
+
+
+# ---------------------------------------------------------------------------
+# Planilla de horarios de RRHH ("2026 HORARIOS.xlsx"): importar y exportar
+# ---------------------------------------------------------------------------
+def _clave_fila(p: dict) -> str:
+    return f"{p['hoja']}|{p['fila']}"
+
+
+def _dia_resumen(tipo: Optional[str], texto: Optional[str]) -> dict:
+    return {"tipo": tipo or TIPO_POR_DEFECTO, "texto": texto}
+
+
+@router.post("/horarios/importar")
+async def importar_horarios(
+    request: Request,
+    archivo: UploadFile = File(...),
+    vinculos: Optional[str] = Form(None, description='JSON {"HOJA|fila": usuario_id} para los nombres elegidos a mano'),
+    simular: bool = Query(False, description="true = solo comparar con lo guardado, sin grabar"),
+    db: Session = Depends(get_db), actual=Depends(_home_office),
+):
+    """Importa la planilla de horarios de RRHH (una hoja por área).
+    Busca a cada persona por apellido y nombre; los que no se encuentran se pueden vincular a mano
+    con `vinculos`. A quien está en la planilla se le reemplaza la semana completa (franja + Home/Convocado);
+    a quien no está, no se le toca nada."""
+    contenido = await archivo.read()
+    if len(contenido) > MAX_EXCEL_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo supera los 5 MB.")
+    try:
+        datos = excel_horarios.leer(contenido)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Tiene que ser un Excel .xlsx.")
+    if not datos["personas"]:
+        raise HTTPException(status_code=400, detail="No encontré personas: revisá que cada hoja tenga APELLIDO Y NOMBRES y LUNES a VIERNES.")
+    try:
+        elegidos = {str(k): int(v) for k, v in (json.loads(vinculos) if vinculos else {}).items() if v}
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="El campo vinculos no es válido.")
+
+    usuarios = db.query(User).filter(User.estado == "ACTIVO").all()
+    por_id = {u.id: u for u in usuarios}
+    actuales = {}
+    for f in db.query(HomeOfficeDia):
+        if 0 <= f.dia_semana < len(DIAS_SEMANA):
+            actuales.setdefault(f.usuario_id, [_dia_resumen(None, None) for _ in DIAS_SEMANA])[f.dia_semana] = \
+                _dia_resumen(f.tipo, f.franja)
+    planilla = {p.usuario_id: p for p in db.query(PersonalHorario)}
+
+    avisos = list(datos["avisos"])
+    no_encontrados, diferencias, asignados = [], [], {}
+    actualizados = sin_cambios = 0
+    colores = {}
+
+    for orden, p in enumerate(datos["personas"]):
+        clave = _clave_fila(p)
+        if p["color"]:
+            c = colores.setdefault(p["color"], {"color": p["color"], "cantidad": 0, "ejemplos": []})
+            c["cantidad"] += 1
+            if len(c["ejemplos"]) < 4:
+                c["ejemplos"].append(p["nombre"])
+
+        u = por_id.get(elegidos[clave]) if clave in elegidos else None
+        if u is None:
+            u, candidatos = nombres.vincular(p["nombre"], usuarios)
+            if u is None:
+                no_encontrados.append({
+                    "clave": clave, "hoja": p["hoja"], "fila": p["fila"], "nombre": p["nombre"],
+                    "candidatos": [{"id": c.id, "nombre": f"{c.apellido}, {c.nombre}"} for c in candidatos],
+                })
+                continue
+        if u.id in asignados:
+            avisos.append(f"{p['hoja']}, fila {p['fila']} ({p['nombre']}): ya estaba en {asignados[u.id]}; vale esta fila.")
+        asignados[u.id] = f"{p['hoja']}, fila {p['fila']}"
+
+        despues = [_dia_resumen(d["tipo"], d["texto"]) for d in p["dias"]]
+        antes = actuales.get(u.id, [_dia_resumen(None, None) for _ in DIAS_SEMANA])
+        ph = planilla.get(u.id)
+        mismos_datos = ph is not None and (ph.area, ph.subsector, ph.observacion, ph.color) == \
+            (p["hoja"], p["subsector"], p["observacion"], p["color"])
+        if antes == despues and mismos_datos:
+            sin_cambios += 1
+        else:
+            actualizados += 1
+            if antes != despues:
+                diferencias.append({"usuario_id": u.id, "nombre": f"{u.apellido}, {u.nombre}",
+                                    "planilla": p["nombre"], "hoja": p["hoja"], "antes": antes, "despues": despues})
+
+        if not simular:
+            db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == u.id).delete()
+            for i, d in enumerate(p["dias"]):
+                db.add(HomeOfficeDia(
+                    usuario_id=u.id, dia_semana=i, tipo=d["tipo"], franja=d["texto"],
+                    hora_desde=d["desde"], hora_hasta=d["hasta"], lugar=d["lugar"],
+                    modificado_por_id=actual.get("id"),
+                ))
+            if ph is None:
+                ph = PersonalHorario(usuario_id=u.id)
+                db.add(ph)
+                planilla[u.id] = ph
+            ph.area, ph.subsector, ph.observacion, ph.color = p["hoja"], p["subsector"], p["observacion"], p["color"]
+            ph.nombre_planilla = p["nombre"][:150]
+            ph.orden = orden
+            ph.fecha_importacion = datetime.utcnow()
+
+    resultado = {
+        "simulacion": simular, "personas": len(datos["personas"]), "hojas": datos["hojas"],
+        "vinculados": len(asignados), "actualizados": actualizados, "sin_cambios": sin_cambios,
+        "no_encontrados": no_encontrados, "diferencias": diferencias, "avisos": avisos,
+        "colores": sorted(colores.values(), key=lambda c: -c["cantidad"]),
+    }
+    if simular:
+        db.rollback()
+        return resultado
+    db.commit()
+    _auditar(db, actual, request, f"Importación de horarios ({archivo.filename}): {len(asignados)} personas, "
+                                  f"{actualizados} con cambios, {len(no_encontrados)} sin vincular")
+    return resultado
+
+
+@router.get("/horarios/exportar", dependencies=[Depends(_home_office)])
+def exportar_horarios(db: Session = Depends(get_db)):
+    """Excel con el mismo formato que la planilla de RRHH: una hoja por área, R en amarillo."""
+    colores = {p.usuario_id: p.color for p in db.query(PersonalHorario)}
+    personas = [{
+        "area": u.area, "subsector": u.subsector, "apellido": u.apellido, "nombre": u.nombre,
+        "observacion": u.observacion, "cod_reg": u.cod_reg, "color": colores.get(u.usuario_id),
+        "dias": [{"tipo": t, "texto": f} for t, f in zip(u.dias, u.franjas)],
+    } for u in tablero_home_office(db)]
+    return Response(
+        excel_horarios.exportar(personas),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Horarios_{date.today():%Y-%m-%d}.xlsx"},
+    )

@@ -24,6 +24,12 @@ class HomeOfficeUsuario(BaseModel):
     dias: List[str] = ["CONVOCADO"] * 5
     # Período sin control vigente hoy (propio o general), si hay
     sin_control: Optional[str] = None
+    # Franja horaria de cada día (texto de la planilla) y datos de la planilla
+    franjas: List[Optional[str]] = [None] * 5
+    area: Optional[str] = None
+    subsector: Optional[str] = None
+    observacion: Optional[str] = None
+    cod_reg: Optional[str] = None
 
 
 class HomeOfficeIn(BaseModel):
