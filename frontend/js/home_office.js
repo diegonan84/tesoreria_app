@@ -1,0 +1,111 @@
+// ============================================================================
+// home_office.js - RECURSOS HUMANOS / TABLERO DE HOME OFFICE
+// ============================================================================
+
+const HO = { usuarios: [] };
+const HO_DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+
+function hoHeaders(json = false) {
+    const h = { "Authorization": `Bearer ${localStorage.getItem("token")}` };
+    if (json) h["Content-Type"] = "application/json";
+    return h;
+}
+
+function hoToast(msg, error = false) {
+    const t = document.getElementById("ho-toast");
+    t.textContent = msg;
+    t.classList.toggle("error", error);
+    t.classList.add("visible");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("visible"), 2500);
+}
+
+async function hoError(res, defecto) {
+    const j = await res.json().catch(() => ({}));
+    return typeof j.detail === "string" ? j.detail : defecto;
+}
+
+function hoNormalizar(txt) {
+    return String(txt || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function hoFiltrados() {
+    const q = hoNormalizar(document.getElementById("ho-q").value.trim());
+    const sector = document.getElementById("ho-sector").value;
+    const solo = document.getElementById("ho-solo").checked;
+    return HO.usuarios.filter(u =>
+        (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil}`).includes(q)) &&
+        (!sector || (u.sector || "Sin sector") === sector) &&
+        (!solo || u.dias.length));
+}
+
+function hoPintar() {
+    const lista = hoFiltrados();
+    const cuerpo = document.getElementById("ho-cuerpo");
+    if (!lista.length) {
+        cuerpo.innerHTML = `<tr><td colspan="8" class="ho-aviso">No hay personas para mostrar.</td></tr>`;
+    } else {
+        cuerpo.innerHTML = lista.map(u => `
+            <tr>
+                <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}</td>
+                <td class="ho-sub">${escapeHTML(u.cuil)}</td>
+                <td class="ho-sub">${escapeHTML(u.sector || "Sin sector")}</td>
+                ${HO_DIAS.map((nombre, d) => `
+                    <td class="dia ${u.dias.includes(d) ? "casa" : ""}">
+                        <input type="checkbox" data-usuario="${u.usuario_id}" data-dia="${d}"
+                               title="${nombre}" ${u.dias.includes(d) ? "checked" : ""}>
+                    </td>`).join("")}
+            </tr>`).join("");
+    }
+
+    // Totales del grupo filtrado: cuántos en casa y cuántos en la oficina cada día
+    const enCasa = HO_DIAS.map((_, d) => lista.filter(u => u.dias.includes(d)).length);
+    document.getElementById("ho-pie").innerHTML = `
+        <tr><td colspan="3">En casa (${lista.length} personas)</td>${enCasa.map(n => `<td class="dia">${n}</td>`).join("")}</tr>
+        <tr><td colspan="3">En la oficina</td>${enCasa.map(n => `<td class="dia">${lista.length - n}</td>`).join("")}</tr>`;
+}
+
+async function hoCambiar(input) {
+    const u = HO.usuarios.find(x => x.usuario_id === Number(input.dataset.usuario));
+    const dia = Number(input.dataset.dia);
+    const dias = input.checked ? [...u.dias, dia] : u.dias.filter(d => d !== dia);
+    input.disabled = true;
+    try {
+        const res = await fetch(`/api/rrhh/home-office/${u.usuario_id}`, {
+            method: "PUT", headers: hoHeaders(true), body: JSON.stringify({ dias }),
+        });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudo guardar."));
+        u.dias = (await res.json()).dias;
+        hoToast(`${u.apellido}: ${u.dias.length ? u.dias.map(d => HO_DIAS[d]).join(", ") : "presencial toda la semana"}`);
+    } catch (e) {
+        hoToast(e.message || "No se pudo conectar con el servidor.", true);
+    }
+    hoPintar();
+}
+
+async function hoCargar() {
+    const aviso = msg => {
+        document.getElementById("ho-cuerpo").innerHTML = `<tr><td colspan="8" class="ho-aviso">${escapeHTML(msg)}</td></tr>`;
+    };
+    try {
+        const res = await fetch("/api/rrhh/home-office", { headers: hoHeaders() });
+        if (!res.ok) { aviso(await hoError(res, "No se pudo cargar el tablero.")); return; }
+        HO.usuarios = await res.json();
+        const sectores = [...new Set(HO.usuarios.map(u => u.sector || "Sin sector"))].sort();
+        document.getElementById("ho-sector").innerHTML = `<option value="">Todos</option>` +
+            sectores.map(s => `<option>${escapeHTML(s)}</option>`).join("");
+        hoPintar();
+    } catch (e) {
+        aviso("No se pudo conectar con el servidor.");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("ho-q").addEventListener("input", hoPintar);
+    document.getElementById("ho-sector").addEventListener("change", hoPintar);
+    document.getElementById("ho-solo").addEventListener("change", hoPintar);
+    document.getElementById("ho-cuerpo").addEventListener("change", e => {
+        if (e.target.matches("input[type=checkbox]")) hoCambiar(e.target);
+    });
+    hoCargar();
+});

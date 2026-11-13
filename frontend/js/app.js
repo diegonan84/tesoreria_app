@@ -23,6 +23,7 @@ const CATALOGO_PERMISOS = [
     ]},
     { codigo: "RRHH", nombre: "Recursos Humanos", icono: "🧑‍💼", paginas: [
         { codigo: "RRHH_Fichadas", nombre: "Control de Fichadas", rutas: ["/control-fichadas"] },
+        { codigo: "RRHH_HomeOffice", nombre: "Tablero de Home Office", rutas: ["/home-office"] },
     ]},
     { codigo: "Rendicion", nombre: "Rendición y Control", icono: "📋", paginas: [
         { codigo: "Rend_Rendiciones", nombre: "Rendiciones presentadas", rutas: [] },
@@ -139,6 +140,7 @@ async function cargarPlantillaComun() {
             if (subtitulo) {
 const titulosModulo = [
                     ["/control-fichadas", "Control de Fichadas"],
+                    ["/home-office", "Tablero de Home Office"],
                     ["/consulta-asignaciones", "Elementos por Usuario/Destino"],
                     ["/calendario", "Calendario"],
                     ["/patrimonio", "Patrimonio"],

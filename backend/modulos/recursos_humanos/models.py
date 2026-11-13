@@ -27,3 +27,20 @@ class Marcacion(Base):
     fecha_carga = Column(DateTime, default=datetime.utcnow)
 
     usuario = relationship("User", foreign_keys=[usuario_id])
+
+
+# Días de la semana del tablero (0 = lunes ... 4 = viernes)
+DIAS_SEMANA = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes")
+
+
+class HomeOfficeDia(Base):
+    """Día fijo de la semana en que el usuario trabaja desde su casa.
+    Una fila por usuario y día; sin filas = todos los días presencial."""
+    __tablename__ = "rrhh_home_office"
+    __table_args__ = (UniqueConstraint("usuario_id", "dia_semana", name="uq_rrhh_home_office_usuario_dia"),)
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    dia_semana = Column(Integer, nullable=False)  # 0 = lunes ... 4 = viernes
+    modificado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    fecha_modificacion = Column(DateTime, default=datetime.utcnow)

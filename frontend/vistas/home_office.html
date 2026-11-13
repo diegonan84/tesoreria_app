@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Tablero de Home Office</title>
+    <link rel="stylesheet" href="/archivos/css/styles.css">
+    <style>
+        .ho-filtros { margin-top: 20px; padding: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+        .ho-tabla { width: 100%; border-collapse: collapse; }
+        .ho-tabla th, .ho-tabla td { padding: 8px 10px; border-bottom: 1px solid #dde3e5; text-align: left; }
+        .ho-tabla th.dia, .ho-tabla td.dia { text-align: center; width: 90px; }
+        .ho-tabla thead th { background: #f3f6f7; position: sticky; top: 0; }
+        .ho-tabla tfoot td { font-weight: 600; background: #f3f6f7; }
+        .ho-tabla td.dia input { width: 18px; height: 18px; cursor: pointer; }
+        .ho-tabla td.dia.casa { background: #e3f2ef; }
+        .ho-sub { color: #6b7c85; font-size: 0.85em; }
+        .ho-aviso { text-align: center; color: #6b7c85; padding: 20px; }
+        #ho-toast { position: fixed; bottom: 24px; right: 24px; background: #1a3644; color: #fff; padding: 10px 16px;
+                    border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+        #ho-toast.visible { opacity: 1; }
+        #ho-toast.error { background: #b3261e; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar-ba" id="global-navbar"></nav>
+    <aside class="sidebar-ba" id="global-sidebar"></aside>
+    <div id="global-chat" class="chat-widget"></div>
+
+    <main class="dashboard-body">
+        <h2>Tablero de Home Office</h2>
+        <p>Tildá los días de la semana en que cada persona trabaja desde su casa. Los cambios se guardan al instante.</p>
+
+        <div class="card ho-filtros">
+            <label style="flex:1; min-width:220px;">Buscar<br>
+                <input type="search" id="ho-q" placeholder="Nombre, apellido o CUIL…" style="width:100%;">
+            </label>
+            <label>Sector<br><select id="ho-sector"><option value="">Todos</option></select></label>
+            <label><input type="checkbox" id="ho-solo"> Solo con home office</label>
+        </div>
+
+        <div class="card" style="margin-top: 16px; padding: 20px; overflow-x:auto;">
+            <table class="ho-tabla">
+                <thead>
+                    <tr>
+                        <th>Apellido y nombre</th>
+                        <th>CUIL</th>
+                        <th>Sector</th>
+                        <th class="dia">Lun</th><th class="dia">Mar</th><th class="dia">Mié</th>
+                        <th class="dia">Jue</th><th class="dia">Vie</th>
+                    </tr>
+                </thead>
+                <tbody id="ho-cuerpo"><tr><td colspan="8" class="ho-aviso">Cargando…</td></tr></tbody>
+                <tfoot id="ho-pie"></tfoot>
+            </table>
+        </div>
+    </main>
+    <div id="ho-toast"></div>
+    <script src="/archivos/js/app.js"></script>
+    <script src="/archivos/js/notificaciones.js"></script>
+    <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/home_office.js"></script>
+</body>
+</html>

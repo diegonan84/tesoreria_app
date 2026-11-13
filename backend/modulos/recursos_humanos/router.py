@@ -1,36 +1,51 @@
 """
 Recursos Humanos - Control de Fichadas
 --------------------------------------
-Acceso: módulo "RRHH" / página "RRHH_Fichadas" habilitados por usuario, o rol Administrador.
-Los códigos coinciden con CATALOGO_PERMISOS en frontend/js/app.js.
+Acceso por página, con los mismos códigos que CATALOGO_PERMISOS en frontend/js/app.js:
+  - RRHH_Fichadas   → Control de Fichadas
+  - RRHH_HomeOffice → Tablero de Home Office
+Igual que en el frontend: el código de módulo "RRHH" sin ninguna página tildada da acceso a todas,
+y Administrador entra a todo.
 """
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from backend.database import get_db
 from backend.modulos.auth.dependencies import verificar_usuario_autenticado
 from backend.modulos.usuarios.models import User
+from backend.modulos.auditoria.service import registrar_evento
 
 from . import schemas
-from .models import Marcacion
+from .models import Marcacion, HomeOfficeDia, DIAS_SEMANA
 
-ROLES_MODULO_RRHH = {"RRHH", "RRHH_Fichadas", "Administrador"}
-
-
-def _requiere_modulo_rrhh(usuario=Depends(verificar_usuario_autenticado)):
-    if not ROLES_MODULO_RRHH.intersection(usuario.get("roles", []) or []):
-        raise HTTPException(status_code=403, detail="No tenés habilitado el módulo Recursos Humanos.")
-    return usuario
+PAGINAS_RRHH = ("RRHH_Fichadas", "RRHH_HomeOffice")
 
 
-router = APIRouter(prefix="/api/rrhh", tags=["Recursos Humanos"], dependencies=[Depends(_requiere_modulo_rrhh)])
+def _tiene_pagina(roles, pagina: str) -> bool:
+    if "Administrador" in roles or pagina in roles:
+        return True
+    return "RRHH" in roles and not any(p in roles for p in PAGINAS_RRHH)
 
 
-@router.get("/marcaciones", response_model=List[schemas.MarcacionOut])
+def _requiere_pagina(pagina: str, nombre: str):
+    def dependencia(usuario=Depends(verificar_usuario_autenticado)):
+        if not _tiene_pagina(usuario.get("roles", []) or [], pagina):
+            raise HTTPException(status_code=403, detail=f"No tenés habilitado {nombre}.")
+        return usuario
+    return dependencia
+
+
+_fichadas = _requiere_pagina("RRHH_Fichadas", "Control de Fichadas")
+_home_office = _requiere_pagina("RRHH_HomeOffice", "el Tablero de Home Office")
+
+router = APIRouter(prefix="/api/rrhh", tags=["Recursos Humanos"])
+
+
+@router.get("/marcaciones", response_model=List[schemas.MarcacionOut], dependencies=[Depends(_fichadas)])
 def listar_marcaciones(
     desde: Optional[date] = None,
     hasta: Optional[date] = None,
@@ -66,3 +81,59 @@ def listar_marcaciones(
         )
         for m in filas
     ]
+
+
+
+# ---------------------------------------------------------------------------
+# Tablero de Home Office
+# ---------------------------------------------------------------------------
+@router.get("/home-office", response_model=List[schemas.HomeOfficeUsuario], dependencies=[Depends(_home_office)])
+def tablero_home_office(db: Session = Depends(get_db)):
+    """Usuarios activos con sus días fijos de home office."""
+    usuarios = (
+        db.query(User).options(joinedload(User.sector))
+        .filter(User.estado == "ACTIVO")
+        .order_by(User.apellido, User.nombre).all()
+    )
+    dias = {}
+    for usuario_id, dia in db.query(HomeOfficeDia.usuario_id, HomeOfficeDia.dia_semana):
+        dias.setdefault(usuario_id, []).append(dia)
+    return [
+        schemas.HomeOfficeUsuario(
+            usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
+            sector=u.sector.nombre if u.sector else None, dias=sorted(dias.get(u.id, [])),
+        )
+        for u in usuarios
+    ]
+
+
+@router.put("/home-office/{usuario_id}", response_model=schemas.HomeOfficeUsuario)
+def guardar_home_office(
+    usuario_id: int, datos: schemas.HomeOfficeIn, request: Request,
+    db: Session = Depends(get_db), actual=Depends(_home_office),
+):
+    """Reemplaza los días de home office del usuario (lista vacía = todos presencial)."""
+    u = db.query(User).options(joinedload(User.sector)).filter(User.id == usuario_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    nuevos = sorted(set(datos.dias))
+    if any(d not in range(len(DIAS_SEMANA)) for d in nuevos):
+        raise HTTPException(status_code=400, detail="Los días válidos son de lunes (0) a viernes (4).")
+
+    db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id).delete()
+    for d in nuevos:
+        db.add(HomeOfficeDia(usuario_id=usuario_id, dia_semana=d, modificado_por_id=actual.get("id")))
+    db.commit()
+
+    texto = ", ".join(DIAS_SEMANA[d] for d in nuevos) or "ninguno (presencial)"
+    registrar_evento(
+        db, usuario_id=actual.get("id"), accion="RRHH_HOME_OFFICE",
+        detalle=f"Home office de {u.apellido}, {u.nombre}: {texto}",
+        ip_address=request.client.host if request.client else None,
+        pc_nombre=request.headers.get("X-PC-Nombre", "Desconocido"),
+        pc_usuario=request.headers.get("X-PC-Usuario", "Desconocido"),
+    )
+    return schemas.HomeOfficeUsuario(
+        usuario_id=u.id, apellido=u.apellido, nombre=u.nombre, cuil=u.cuil,
+        sector=u.sector.nombre if u.sector else None, dias=nuevos,
+    )

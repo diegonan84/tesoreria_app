@@ -113,6 +113,9 @@ def serve_pedido_soporte(): return FileResponse("frontend/vistas/tickets/pedido_
 @app.get("/control-fichadas")
 def serve_control_fichadas(): return FileResponse("frontend/vistas/control_fichadas.html")
 
+@app.get("/home-office")
+def serve_home_office(): return FileResponse("frontend/vistas/home_office.html")
+
 # --------------------------------------------------
 # RUTAS DEL FRONTEND - MÓDULO PATRIMONIO
 # --------------------------------------------------

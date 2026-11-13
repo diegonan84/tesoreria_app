@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel
 
 
@@ -12,3 +12,16 @@ class MarcacionOut(BaseModel):
     tipo: Optional[str] = None
     origen: str
     dispositivo: Optional[str] = None
+
+
+class HomeOfficeUsuario(BaseModel):
+    usuario_id: int
+    apellido: str
+    nombre: str
+    cuil: str
+    sector: Optional[str] = None
+    dias: List[int] = []
+
+
+class HomeOfficeIn(BaseModel):
+    dias: List[int]
