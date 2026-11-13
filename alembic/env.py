@@ -23,6 +23,7 @@ import backend.modulos.agenda.models
 import backend.modulos.ayuda.models
 import backend.modulos.sistemas.models
 import backend.modulos.tickets.models
+import backend.modulos.recursos_humanos.models
 
 # (No importes backend.models aquí)
 # ✨ AGREGA ESTAS LÍNEAS (Ajusta los nombres según cómo tengas tus carpetas):

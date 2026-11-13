@@ -13,34 +13,35 @@
 
     <main class="dashboard-body">
         <h2>Control de Fichadas</h2>
-            <p>Panel de control de asistencia del personal.</p>
-            
-            <div class="card" style="margin-top: 20px; padding: 20px;">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Empleado</th>
-                            <th>Estado</th>
-                            <th>Hora de Ingreso</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-fichadas">
-                        <!-- Los datos se cargarán por JS -->
-                    </tbody>
-                </table>
-            </div>
+        <p>Marcaciones registradas del personal.</p>
+
+        <div class="card" style="margin-top: 20px; padding: 16px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+            <label>Desde<br><input type="date" id="f-desde"></label>
+            <label>Hasta<br><input type="date" id="f-hasta"></label>
+            <label style="flex:1; min-width:200px;">Empleado<br>
+                <input type="search" id="f-q" placeholder="Legajo, DNI, nombre o apellido…" style="width:100%;">
+            </label>
+            <button type="button" id="f-buscar">Buscar</button>
+        </div>
+
+        <div class="card" style="margin-top: 16px; padding: 20px;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Fecha y hora</th>
+                        <th>Identificador</th>
+                        <th>Empleado</th>
+                        <th>Tipo</th>
+                        <th>Origen</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-fichadas"></tbody>
+            </table>
+        </div>
     </main>
     <script src="/archivos/js/app.js"></script>
     <script src="/archivos/js/notificaciones.js"></script>
     <script src="/archivos/js/chat.js"></script>
+    <script src="/archivos/js/fichadas.js"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
