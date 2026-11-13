@@ -156,24 +156,63 @@ async function hoExportar(boton) {
     boton.disabled = false;
 }
 
+async function hoEnviarExcel(archivo, simular) {
+    const datos = new FormData();
+    datos.append("archivo", archivo);
+    const res = await fetch(`/api/rrhh/home-office/importar?simular=${simular}`, { method: "POST", headers: hoHeaders(), body: datos });
+    if (!res.ok) throw new Error(await hoError(res, "No se pudo leer el Excel."));
+    return res.json();
+}
+
+function hoTablaComparacion(diferencias) {
+    if (!diferencias.length) return "";
+    const celda = (antes, despues) => antes === despues
+        ? `<td class="ho-igual">${HO_TIPOS[despues]}</td>`
+        : `<td class="ho-cambio ${despues.toLowerCase()}" title="Antes: ${HO_TIPOS[antes]}">${HO_TIPOS[antes]} → ${HO_TIPOS[despues]}</td>`;
+    return `<div class="ho-comparacion"><table>
+        <thead><tr><th>Persona</th>${HO_DIAS.map(d => `<th>${d.slice(0, 3)}</th>`).join("")}</tr></thead>
+        <tbody>${diferencias.map(x => `<tr>
+            <td>${escapeHTML(x.apellido)}, ${escapeHTML(x.nombre)} <span class="ho-sub">${escapeHTML(x.cuil)}</span></td>
+            ${x.despues.map((t, d) => celda(x.antes[d], t)).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
+}
+
+function hoListaProblemas(problemas) {
+    return problemas.length ? `<ul>${problemas.map(p => `<li>${escapeHTML(p)}</li>`).join("")}</ul>` : "";
+}
+
+// Paso 1: comparar el Excel con lo guardado (no graba nada). Paso 2: "Aplicar importación".
 async function hoImportar(archivo) {
     if (!archivo) return;
     if (hoPendientes().length && !confirm("Tenés cambios sin guardar en pantalla: la importación los va a reemplazar. ¿Seguir?")) return;
-    if (!confirm(`Se va a cargar la semana de cada persona que figure en "${archivo.name}" (se busca por CUIL). ` +
-                 "Los días vacíos o en verde quedan Convocado. ¿Continuar?")) return;
     const caja = document.getElementById("ho-resultado");
     const boton = document.getElementById("ho-importar");
     boton.disabled = true;
     try {
-        const datos = new FormData();
-        datos.append("archivo", archivo);
-        const res = await fetch("/api/rrhh/home-office/importar", { method: "POST", headers: hoHeaders(), body: datos });
-        if (!res.ok) throw new Error(await hoError(res, "No se pudo importar."));
-        const r = await res.json();
-        caja.innerHTML = `<b>Importación terminada:</b> ${r.actualizados} persona(s) actualizada(s), ${r.sin_cambios} sin cambios.` +
-            (r.problemas.length ? `<ul>${r.problemas.map(p => `<li>${escapeHTML(p)}</li>`).join("")}</ul>` : "");
+        const r = await hoEnviarExcel(archivo, true);
+        caja.innerHTML = `<b>Comparación de "${escapeHTML(archivo.name)}" con lo guardado:</b>
+            ${r.actualizados} persona(s) cambian, ${r.sin_cambios} quedan igual. Todavía no se guardó nada.` +
+            hoTablaComparacion(r.diferencias) + hoListaProblemas(r.problemas) +
+            `<div class="ho-resultado-acciones">
+                ${r.actualizados ? `<button type="button" id="ho-aplicar">Aplicar importación</button>` : ""}
+                <button type="button" id="ho-cancelar">${r.actualizados ? "Cancelar" : "Cerrar"}</button>
+            </div>`;
         caja.style.display = "block";
-        await hoCargar();
+        caja.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("ho-cancelar").onclick = () => { caja.style.display = "none"; };
+        const aplicar = document.getElementById("ho-aplicar");
+        if (aplicar) aplicar.onclick = async () => {
+            aplicar.disabled = true;
+            try {
+                const f = await hoEnviarExcel(archivo, false);
+                caja.innerHTML = `<b>Importación aplicada:</b> ${f.actualizados} persona(s) actualizada(s), ${f.sin_cambios} sin cambios.` +
+                    hoTablaComparacion(f.diferencias) + hoListaProblemas(f.problemas);
+                await hoCargar();
+            } catch (e) {
+                aplicar.disabled = false;
+                hoToast(e.message || "No se pudo conectar con el servidor.", true);
+            }
+        };
     } catch (e) {
         hoToast(e.message || "No se pudo conectar con el servidor.", true);
     }

@@ -151,9 +151,11 @@ MAX_EXCEL_BYTES = 5 * 1024 * 1024
 @router.post("/home-office/importar")
 async def importar_home_office(
     request: Request, archivo: UploadFile = File(...),
+    simular: bool = Query(False, description="true = solo comparar con lo guardado, sin grabar"),
     db: Session = Depends(get_db), actual=Depends(_home_office),
 ):
     """Carga la semana de cada persona del Excel, buscándola por CUIL.
+    Con simular=true devuelve la comparación (antes / después por persona) y no graba nada.
     La fila manda: un día vacío o verde queda Convocado. Quien no está en el archivo no se toca."""
     contenido = await archivo.read()
     if len(contenido) > MAX_EXCEL_BYTES:
@@ -168,7 +170,7 @@ async def importar_home_office(
     por_cuil = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User).filter(User.estado == "ACTIVO")}
     actuales = _semanas_guardadas(db)
 
-    actualizados, sin_cambios, problemas, vistos = 0, 0, list(datos["problemas"]), {}
+    actualizados, sin_cambios, problemas, vistos, diferencias = 0, 0, list(datos["problemas"]), {}, []
     for f in datos["filas"]:
         u = por_cuil.get(excel_home_office.solo_digitos(f["cuil"]))
         if not u:
@@ -179,17 +181,27 @@ async def importar_home_office(
             problemas.append(f"Fila {f['fila']}: el CUIL {f['cuil']} ya estaba en la fila {vistos[u.id]}; vale la última.")
         vistos[u.id] = f["fila"]
         semana = [t or TIPO_POR_DEFECTO for t in f["dias"]]
-        if actuales.get(u.id, _semana_por_defecto()) == semana:
+        antes = actuales.get(u.id, _semana_por_defecto())
+        if antes == semana:
             sin_cambios += 1
             continue
-        _guardar_semana(db, u.id, semana, actual)
+        diferencias.append({"usuario_id": u.id, "apellido": u.apellido, "nombre": u.nombre, "cuil": u.cuil,
+                            "antes": antes, "despues": semana})
+        if not simular:
+            _guardar_semana(db, u.id, semana, actual)
         actuales[u.id] = semana
         actualizados += 1
+
+    if simular:
+        db.rollback()
+        return {"simulacion": True, "actualizados": actualizados, "sin_cambios": sin_cambios,
+                "problemas": problemas, "diferencias": diferencias}
     db.commit()
 
     _auditar(db, actual, request, f"Importación Excel ({archivo.filename}): {actualizados} actualizados, "
                                   f"{sin_cambios} sin cambios, {len(problemas)} avisos")
-    return {"actualizados": actualizados, "sin_cambios": sin_cambios, "problemas": problemas}
+    return {"simulacion": False, "actualizados": actualizados, "sin_cambios": sin_cambios,
+            "problemas": problemas, "diferencias": diferencias}
 
 
 def _validar_semana(dias: List[Optional[str]]) -> List[str]:
