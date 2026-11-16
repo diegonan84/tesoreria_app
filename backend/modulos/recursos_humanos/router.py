@@ -414,6 +414,26 @@ def _dia_resumen(tipo: Optional[str], texto: Optional[str]) -> dict:
     return {"tipo": tipo or TIPO_POR_DEFECTO, "texto": texto}
 
 
+def aplicar_fila_planilla(db: Session, usuario_id: int, p: dict, orden: int, actual: dict) -> PersonalHorario:
+    """Carga una fila de la planilla de horarios para un usuario: reemplaza su semana y sus datos de planilla."""
+    db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id).delete()
+    for i, d in enumerate(p["dias"]):
+        db.add(HomeOfficeDia(
+            usuario_id=usuario_id, dia_semana=i, tipo=d["tipo"], franja=d["texto"],
+            hora_desde=d["desde"], hora_hasta=d["hasta"], lugar=d["lugar"],
+            modificado_por_id=actual.get("id"),
+        ))
+    ph = db.query(PersonalHorario).filter(PersonalHorario.usuario_id == usuario_id).first()
+    if ph is None:
+        ph = PersonalHorario(usuario_id=usuario_id)
+        db.add(ph)
+    ph.area, ph.subsector, ph.observacion, ph.color = p["hoja"], p["subsector"], p["observacion"], p["color"]
+    ph.nombre_planilla = p["nombre"][:150]
+    ph.orden = orden
+    ph.fecha_importacion = datetime.utcnow()
+    return ph
+
+
 @router.post("/horarios/importar")
 async def importar_horarios(
     request: Request,
@@ -489,21 +509,7 @@ async def importar_horarios(
                                     "planilla": p["nombre"], "hoja": p["hoja"], "antes": antes, "despues": despues})
 
         if not simular:
-            db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == u.id).delete()
-            for i, d in enumerate(p["dias"]):
-                db.add(HomeOfficeDia(
-                    usuario_id=u.id, dia_semana=i, tipo=d["tipo"], franja=d["texto"],
-                    hora_desde=d["desde"], hora_hasta=d["hasta"], lugar=d["lugar"],
-                    modificado_por_id=actual.get("id"),
-                ))
-            if ph is None:
-                ph = PersonalHorario(usuario_id=u.id)
-                db.add(ph)
-                planilla[u.id] = ph
-            ph.area, ph.subsector, ph.observacion, ph.color = p["hoja"], p["subsector"], p["observacion"], p["color"]
-            ph.nombre_planilla = p["nombre"][:150]
-            ph.orden = orden
-            ph.fecha_importacion = datetime.utcnow()
+            planilla[u.id] = aplicar_fila_planilla(db, u.id, p, orden, actual)
 
     resultado = {
         "simulacion": simular, "personas": len(datos["personas"]), "hojas": datos["hojas"],

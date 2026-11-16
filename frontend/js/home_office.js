@@ -40,7 +40,7 @@ function hoFiltrados() {
     const mostrar = document.getElementById("ho-solo").value;
     return HO.usuarios.filter(u =>
         (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil} ${u.cod_reg || ""}`).includes(q)) &&
-        (!area || (u.area || "Sin área") === area) &&
+        (!area || (u.area || u.sector || "Sin área") === area) &&
         (!sector || (u.sector || "Sin sector") === sector) &&
         (!mostrar || (mostrar === "sinhome" ? !u.dias.includes("HOME") : u.dias.includes(mostrar))));
 }
@@ -94,7 +94,7 @@ function hoPintar() {
                     ${u.cod_reg ? `<span class="ho-sub"> · Cód Reg ${escapeHTML(u.cod_reg)}</span>` : ""}
                     ${u.sin_control ? `<br><span class="ho-sc-badge" title="No se controla Home / Convocado">⏸ ${escapeHTML(u.sin_control)}</span>` : ""}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
-                <td class="ho-sub">${escapeHTML(u.area || "Sin área")}${u.subsector ? `<br>${escapeHTML(u.subsector)}` : ""}</td>
+                <td class="ho-sub">${escapeHTML(u.area || u.sector || "Sin área")}${u.subsector ? `<br>${escapeHTML(u.subsector)}` : ""}</td>
                 ${HO_DIAS.map((_, d) => `<td class="dia">${hoBoton(u, d)}</td>`).join("")}
                 <td class="ho-col-obs${hoObsPendiente(u) ? " pendiente" : ""}" data-usuario="${u.usuario_id}"
                     title="Doble clic para editar">${escapeHTML(u.observacion || "")}</td>
@@ -206,7 +206,7 @@ async function hoCargar() {
         HO.usuarios = await res.json();
         HO.usuarios.forEach(u => { u.franjas = u.franjas || [null, null, null, null, null]; });
         HO.guardado = Object.fromEntries(HO.usuarios.map(u => [u.usuario_id, hoFoto(u)]));
-        const areas = [...new Set(HO.usuarios.map(u => u.area || "Sin área"))];
+        const areas = [...new Set(HO.usuarios.map(u => u.area || u.sector || "Sin área"))];
         const selArea = document.getElementById("ho-area");
         const areaElegida = selArea.value;
         selArea.innerHTML = `<option value="">Todas</option>` + areas.map(a => `<option>${escapeHTML(a)}</option>`).join("");

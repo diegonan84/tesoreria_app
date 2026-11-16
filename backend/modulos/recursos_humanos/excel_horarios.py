@@ -52,8 +52,10 @@ def _buscar_encabezado(ws):
         nombres = {_normalizar(c.value): c.column for c in fila if c.value is not None}
         if all(d in nombres for d in DIAS):
             col_nombre = next((col for k, col in nombres.items() if "APELLIDO" in k or "NOMBRE" in k), 1)
-            return fila[0].row, col_nombre, [nombres[d] for d in DIAS]
-    return None, None, None
+            # La columna "CÓD REG" que agrega nuestra exportación no es observación
+            ignorar = {col for k, col in nombres.items() if k.replace(" ", "").replace(".", "") == "CODREG"}
+            return fila[0].row, col_nombre, [nombres[d] for d in DIAS], ignorar
+    return None, None, None, set()
 
 
 def leer(contenido: bytes) -> dict:
@@ -69,7 +71,7 @@ def leer(contenido: bytes) -> dict:
         if _normalizar(ws.title) == "SIN AREA":
             avisos.append("Hoja \"SIN ÁREA\": son las personas que no estaban en la planilla, se saltea.")
             continue
-        fila_enc, col_nombre, cols_dias = _buscar_encabezado(ws)
+        fila_enc, col_nombre, cols_dias, cols_ignorar = _buscar_encabezado(ws)
         if not fila_enc:
             avisos.append(f"Hoja \"{ws.title}\": no tiene los encabezados LUNES a VIERNES, se saltea.")
             continue
@@ -116,7 +118,8 @@ def leer(contenido: bytes) -> dict:
 
             obs = [str(ws.cell(row=nro, column=c).value).strip()
                    for c in range(ultima_col + 1, ws.max_column + 1)
-                   if ws.cell(row=nro, column=c).value is not None and str(ws.cell(row=nro, column=c).value).strip()]
+                   if c not in cols_ignorar
+                   and ws.cell(row=nro, column=c).value is not None and str(ws.cell(row=nro, column=c).value).strip()]
             personas.append({
                 "hoja": ws.title, "fila": nro, "nombre": nombre, "subsector": subsector,
                 "color": _color_significativo(ws.cell(row=nro, column=col_nombre), tema),

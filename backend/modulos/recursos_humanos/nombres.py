@@ -4,6 +4,7 @@ La planilla no trae CUIL, así que se compara por las palabras del apellido y lo
 """
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from typing import Iterable, List, Optional, Tuple
 
 # Palabras que no son parte del nombre (cargos o siglas entre paréntesis ya se quitan aparte)
@@ -62,4 +63,18 @@ def vincular(texto, usuarios: Iterable) -> Tuple[Optional[object], List[object]]
     sugeridos = [u for u, c in claves if pal_apellido and pal_apellido <= c and len(c & buscado) > len(pal_apellido)]
     if not sugeridos:
         sugeridos = [u for u, c in claves if pal_apellido and pal_apellido <= c]
+    if not sugeridos:
+        # Diferencias de una o dos letras: "ESTEVEZ" / "Esteves", "CYINTHIA" / "Cynthia"
+        sugeridos = [u for _, u in sorted(((_parecido(buscado, c), u) for u, c in claves), key=lambda x: -x[0])
+                     if _ >= 0.8]
     return None, sugeridos[:5]
+
+
+def _parecido(a: frozenset, b: frozenset) -> float:
+    """Qué tan parecidos son dos nombres (0 a 1): cada palabra se compara con la más parecida del otro."""
+    if not a or not b:
+        return 0.0
+    def mejor(p, otras):
+        return max(SequenceMatcher(None, p, o).ratio() for o in otras)
+    puntos = [mejor(p, b) for p in a] + [mejor(p, a) for p in b]
+    return sum(puntos) / len(puntos)
