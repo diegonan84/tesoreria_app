@@ -36,11 +36,9 @@ const HO_SIGUIENTE = { HOME: "CONVOCADO", CONVOCADO: "HOME" };
 function hoFiltrados() {
     const q = hoNormalizar(document.getElementById("ho-q").value.trim());
     const sector = document.getElementById("ho-sector").value;
-    const area = document.getElementById("ho-area").value;
     const mostrar = document.getElementById("ho-solo").value;
     return HO.usuarios.filter(u =>
         (!q || hoNormalizar(`${u.apellido} ${u.nombre} ${u.cuil} ${u.cod_reg || ""}`).includes(q)) &&
-        (!area || (u.area || u.sector || "Sin área") === area) &&
         (!sector || (u.sector || "Sin sector") === sector) &&
         (!mostrar || (mostrar === "sinhome" ? !u.dias.includes("HOME") : u.dias.includes(mostrar))));
 }
@@ -94,7 +92,7 @@ function hoPintar() {
                     ${u.cod_reg ? `<span class="ho-sub"> · Cód Reg ${escapeHTML(u.cod_reg)}</span>` : ""}
                     ${u.sin_control ? `<br><span class="ho-sc-badge" title="No se controla Home / Convocado">⏸ ${escapeHTML(u.sin_control)}</span>` : ""}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
-                <td class="ho-sub">${escapeHTML(u.area || u.sector || "Sin área")}${u.subsector ? `<br>${escapeHTML(u.subsector)}` : ""}</td>
+                <td class="ho-sub">${escapeHTML(u.sector || "Sin sector")}${u.puesto ? `<br>Puesto ${escapeHTML(u.puesto)}` : ""}</td>
                 ${HO_DIAS.map((_, d) => `<td class="dia">${hoBoton(u, d)}</td>`).join("")}
                 <td class="ho-col-obs${hoObsPendiente(u) ? " pendiente" : ""}" data-usuario="${u.usuario_id}"
                     title="Doble clic para editar">${escapeHTML(u.observacion || "")}</td>
@@ -206,14 +204,12 @@ async function hoCargar() {
         HO.usuarios = await res.json();
         HO.usuarios.forEach(u => { u.franjas = u.franjas || [null, null, null, null, null]; });
         HO.guardado = Object.fromEntries(HO.usuarios.map(u => [u.usuario_id, hoFoto(u)]));
-        const areas = [...new Set(HO.usuarios.map(u => u.area || u.sector || "Sin área"))];
-        const selArea = document.getElementById("ho-area");
-        const areaElegida = selArea.value;
-        selArea.innerHTML = `<option value="">Todas</option>` + areas.map(a => `<option>${escapeHTML(a)}</option>`).join("");
-        selArea.value = areaElegida;
         const sectores = [...new Set(HO.usuarios.map(u => u.sector || "Sin sector"))].sort();
-        document.getElementById("ho-sector").innerHTML = `<option value="">Todos</option>` +
+        const selSector = document.getElementById("ho-sector");
+        const sectorElegido = selSector.value;
+        selSector.innerHTML = `<option value="">Todos</option>` +
             sectores.map(s => `<option>${escapeHTML(s)}</option>`).join("");
+        selSector.value = sectorElegido;
         const sel = document.getElementById("sc-usuario");
         const elegido = sel.value;
         sel.innerHTML = `<option value="">Todo el personal</option>` + HO.usuarios.map(u =>
@@ -431,7 +427,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.getElementById("ho-q").addEventListener("input", hoPintar);
     document.getElementById("ho-sector").addEventListener("change", hoPintar);
-    document.getElementById("ho-area").addEventListener("change", hoPintar);
     document.getElementById("ho-solo").addEventListener("change", hoPintar);
     document.getElementById("ho-guardar").addEventListener("click", hoGuardar);
     document.getElementById("ho-descartar").addEventListener("click", hoDescartar);

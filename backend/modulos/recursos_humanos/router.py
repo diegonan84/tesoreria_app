@@ -171,7 +171,8 @@ def tablero_home_office(db: Session = Depends(get_db)):
     sin_control = _sin_control_hoy(db)
     franjas = _franjas_guardadas(db)
     planilla = {p.usuario_id: p for p in db.query(PersonalHorario)}
-    usuarios.sort(key=lambda u: (planilla[u.id].orden if u.id in planilla and planilla[u.id].orden is not None else 10**9,
+    # Sector y datos personales salen del módulo de Usuarios; de la planilla solo los horarios y observaciones
+    usuarios.sort(key=lambda u: ((u.sector.nombre if u.sector else "￿").upper(),
                                  (u.apellido or "").upper(), (u.nombre or "").upper()))
     return [
         schemas.HomeOfficeUsuario(
@@ -183,6 +184,8 @@ def tablero_home_office(db: Session = Depends(get_db)):
             subsector=planilla[u.id].subsector if u.id in planilla else None,
             observacion=planilla[u.id].observacion if u.id in planilla else None,
             cod_reg=u.cod_reg,
+            puesto=u.puesto,
+            reparticion=u.reparticion,
         )
         for u in usuarios
     ]
@@ -498,8 +501,8 @@ async def importar_horarios(
         despues = [_dia_resumen(d["tipo"], d["texto"]) for d in p["dias"]]
         antes = actuales.get(u.id, [_dia_resumen(None, None) for _ in DIAS_SEMANA])
         ph = planilla.get(u.id)
-        mismos_datos = ph is not None and (ph.area, ph.subsector, ph.observacion, ph.color) == \
-            (p["hoja"], p["subsector"], p["observacion"], p["color"])
+        # El sector sale de Usuarios: de la planilla solo importan horarios, observación y color
+        mismos_datos = ph is not None and (ph.observacion, ph.color) == (p["observacion"], p["color"])
         if antes == despues and mismos_datos:
             sin_cambios += 1
         else:
@@ -531,7 +534,7 @@ def exportar_horarios(db: Session = Depends(get_db)):
     """Excel con el mismo formato que la planilla de RRHH: una hoja por área, R en amarillo."""
     colores = {p.usuario_id: p.color for p in db.query(PersonalHorario)}
     personas = [{
-        "area": u.area, "subsector": u.subsector, "apellido": u.apellido, "nombre": u.nombre,
+        "area": u.sector or "SIN SECTOR", "subsector": None, "apellido": u.apellido, "nombre": u.nombre,
         "observacion": u.observacion, "cod_reg": u.cod_reg, "color": colores.get(u.usuario_id),
         "dias": [{"tipo": t, "texto": f} for t, f in zip(u.dias, u.franjas)],
     } for u in tablero_home_office(db)]

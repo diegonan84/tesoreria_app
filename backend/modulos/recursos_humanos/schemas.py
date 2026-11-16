@@ -30,6 +30,8 @@ class HomeOfficeUsuario(BaseModel):
     subsector: Optional[str] = None
     observacion: Optional[str] = None
     cod_reg: Optional[str] = None
+    puesto: Optional[str] = None
+    reparticion: Optional[str] = None
 
 
 class HomeOfficeIn(BaseModel):
