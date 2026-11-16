@@ -268,6 +268,7 @@ async def importar_usuarios_excel(
         usuarios_agregados = 0
         puestos_actualizados = 0
         cod_reg_actualizados = 0
+        sectores_actualizados = 0
         sin_cambios = 0
         errores = []
         
@@ -290,23 +291,6 @@ async def importar_usuarios_excel(
                 cod_reg_excel = None if not col_cod_reg else (db.query(models.User.cod_reg).filter(
                     (models.User.email == email) | (models.User.cuil == cuil)).scalar() or "")
 
-            # Si el usuario ya existe, solo actualizamos su puesto y su Cód Reg (si cambiaron; vacío en el Excel los quita)
-            usuario_existente = db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first()
-            if usuario_existente:
-                cambio = False
-                puesto_excel = _texto_celda(row["Puesto"])
-                if puesto_excel != (usuario_existente.puesto or ""):
-                    usuario_existente.puesto = puesto_excel or None
-                    puestos_actualizados += 1
-                    cambio = True
-                if col_cod_reg and cod_reg_excel != (usuario_existente.cod_reg or ""):
-                    usuario_existente.cod_reg = cod_reg_excel or None
-                    cod_reg_actualizados += 1
-                    cambio = True
-                if not cambio:
-                    sin_cambios += 1
-                continue
-            
             # Procesamos el Sector
             sector_nombre = str(row["Sector"]).strip()
             sector_id = None
@@ -322,6 +306,28 @@ async def importar_usuarios_excel(
                     sector_map[sector_nombre.lower()] = nuevo_sector.id
                     sector_id = nuevo_sector.id
 
+            # Si el usuario ya existe, actualizamos su sector, puesto y Cód Reg si cambiaron
+            # (puesto o Cód Reg vacíos en el Excel los quitan; un sector vacío no lo toca)
+            usuario_existente = db.query(models.User).filter((models.User.email == email) | (models.User.cuil == cuil)).first()
+            if usuario_existente:
+                cambio = False
+                if sector_id and sector_id != usuario_existente.sector_id:
+                    usuario_existente.sector_id = sector_id
+                    sectores_actualizados += 1
+                    cambio = True
+                puesto_excel = _texto_celda(row["Puesto"])
+                if puesto_excel != (usuario_existente.puesto or ""):
+                    usuario_existente.puesto = puesto_excel or None
+                    puestos_actualizados += 1
+                    cambio = True
+                if col_cod_reg and cod_reg_excel != (usuario_existente.cod_reg or ""):
+                    usuario_existente.cod_reg = cod_reg_excel or None
+                    cod_reg_actualizados += 1
+                    cambio = True
+                if not cambio:
+                    sin_cambios += 1
+                continue
+            
             # Procesamos el Rol: siempre suma los permisos por defecto (Operador, Chat y Calendario)
             roles = models.roles_con_defecto(str(row["Rol"]).strip())
 
@@ -348,19 +354,22 @@ async def importar_usuarios_excel(
         mensaje = f"Se importaron {usuarios_agregados} usuarios. Los nuevos ingresan con la clave {CLAVE_POR_DEFECTO} y deben cambiarla en el primer ingreso; a los existentes no se les toca la clave."
         if puestos_actualizados:
             mensaje += f" Se actualizó el puesto de {puestos_actualizados} usuarios existentes."
+        if sectores_actualizados:
+            mensaje += f" Se actualizó el sector de {sectores_actualizados} usuarios existentes."
         if cod_reg_actualizados:
             mensaje += f" Se actualizó el Cód Reg de {cod_reg_actualizados} usuarios existentes."
         if sin_cambios:
-            mensaje += f" {sin_cambios} usuarios ya existían sin cambios de puesto ni de Cód Reg."
+            mensaje += f" {sin_cambios} usuarios ya existían sin cambios de sector, puesto ni Cód Reg."
 
         registrar_evento(
             db, usuario_id=admin_auth.get("id"), accion="IMPORTAR_USUARIOS_EXCEL",
-            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados, {puestos_actualizados} puestos y {cod_reg_actualizados} Cód Reg actualizados desde archivo {file.filename}",
+            detalle=f"Importación masiva: {usuarios_agregados} usuarios creados, {sectores_actualizados} sectores, {puestos_actualizados} puestos y {cod_reg_actualizados} Cód Reg actualizados desde archivo {file.filename}",
             ip_address=request.client.host if request else None
         )
             
         return {"mensaje": mensaje, "errores": errores, "usuarios_agregados": usuarios_agregados,
-                "puestos_actualizados": puestos_actualizados, "cod_reg_actualizados": cod_reg_actualizados}
+                "puestos_actualizados": puestos_actualizados, "cod_reg_actualizados": cod_reg_actualizados,
+                "sectores_actualizados": sectores_actualizados}
         
     except HTTPException:
         raise
