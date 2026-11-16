@@ -84,3 +84,24 @@ class PersonalHorario(Base):
     nombre_planilla = Column(String(150), nullable=True)
     orden = Column(Integer, nullable=True)            # orden en la planilla (hoja y fila)
     fecha_importacion = Column(DateTime, default=datetime.utcnow)
+
+
+
+class HorarioHistorial(Base):
+    """Historial por fechas del horario de cada persona y día de la semana.
+    Cada cambio cierra la vigencia anterior (vigente_hasta) y abre una nueva desde ese día,
+    así se puede saber qué horario tenía alguien en cualquier fecha (para compararlo con las fichadas)."""
+    __tablename__ = "rrhh_horario_historial"
+
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    dia_semana = Column(Integer, nullable=False)  # 0 = lunes ... 4 = viernes
+    tipo = Column(String(12), nullable=False)      # HOME | CONVOCADO | SIN_HORARIO
+    franja = Column(String(80), nullable=True)
+    hora_desde = Column(Time, nullable=True)
+    hora_hasta = Column(Time, nullable=True)
+    lugar = Column(String(60), nullable=True)
+    vigente_desde = Column(Date, nullable=False, index=True)
+    vigente_hasta = Column(Date, nullable=True, index=True)  # null = vigente hoy
+    modificado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)

@@ -89,6 +89,7 @@ function hoPintar() {
         cuerpo.innerHTML = lista.map(u => `
             <tr class="${u.sin_control ? "ho-sin-control" : ""}">
                 <td>${escapeHTML(u.apellido)}, ${escapeHTML(u.nombre)}
+                    <button type="button" class="ho-hist-btn" data-historial="${u.usuario_id}" title="Ver historial de horarios">🕘</button>
                     ${u.cod_reg ? `<span class="ho-sub"> · Cód Reg ${escapeHTML(u.cod_reg)}</span>` : ""}
                     ${u.sin_control ? `<br><span class="ho-sc-badge" title="No se controla Home / Convocado">⏸ ${escapeHTML(u.sin_control)}</span>` : ""}</td>
                 <td class="ho-sub">${escapeHTML(u.cuil)}</td>
@@ -342,6 +343,32 @@ async function hoImportar(archivo) {
 }
 
 // ---------------------------------------------------------------------------
+// Historial de horarios (cada cambio queda guardado con su fecha de vigencia)
+// ---------------------------------------------------------------------------
+async function hoHistorial(usuarioId) {
+    const caja = document.getElementById("ho-resultado");
+    try {
+        const res = await fetch(`/api/rrhh/horarios/historial/${usuarioId}`, { headers: hoHeaders() });
+        if (!res.ok) throw new Error(await hoError(res, "No se pudo cargar el historial."));
+        const h = await res.json();
+        const vig = v => `${scFecha(v.vigente_desde)} → ${v.vigente_hasta ? scFecha(v.vigente_hasta) : "hoy"}`;
+        caja.innerHTML = `<b>Historial de horarios de ${escapeHTML(h.usuario)}</b>` + (h.vigencias.length
+            ? `<div class="ho-comparacion"><table class="ho-hist"><thead><tr><th>Vigencia</th><th>Día</th><th>Modalidad</th>
+                 <th>Horario</th><th>Cargado por</th></tr></thead><tbody>${h.vigencias.map(v => `<tr>
+                 <td>${vig(v)}</td><td>${escapeHTML(v.dia)}</td><td>${escapeHTML(HO_TIPOS[v.tipo] === "—" ? "Sin horario" : HO_TIPOS[v.tipo])}</td>
+                 <td>${escapeHTML(v.franja || "—")}</td><td class="ho-sub">${escapeHTML(v.modificado_por || "")}</td></tr>`).join("")}
+               </tbody></table></div>`
+            : "<p>Todavía no tiene horarios registrados.</p>") +
+            `<div class="ho-resultado-acciones"><button type="button" id="ho-cerrar-hist">Cerrar</button></div>`;
+        caja.style.display = "block";
+        caja.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("ho-cerrar-hist").onclick = () => { caja.style.display = "none"; };
+    } catch (e) {
+        hoToast(e.message, true);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Períodos sin control
 // ---------------------------------------------------------------------------
 function scFecha(iso) {
@@ -442,6 +469,10 @@ document.addEventListener("DOMContentLoaded", () => {
         clearTimeout(esperaClic);
         esperaClic = setTimeout(() => hoCambiar(boton), 250);
     });
+    document.getElementById("ho-cuerpo").addEventListener("click", e => {
+        const b = e.target.closest("button[data-historial]");
+        if (b) { e.stopPropagation(); hoHistorial(Number(b.dataset.historial)); }
+    }, true);
     document.getElementById("ho-cuerpo").addEventListener("dblclick", e => {
         clearTimeout(esperaClic);
         const boton = e.target.closest("button.ho-marca");

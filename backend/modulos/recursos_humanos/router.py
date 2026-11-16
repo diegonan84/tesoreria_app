@@ -24,7 +24,7 @@ import json
 
 from . import schemas, excel_home_office, excel_horarios, nombres
 from .franjas import leer_franja
-from .models import (Marcacion, HomeOfficeDia, PeriodoSinControl, PersonalHorario,
+from .models import (Marcacion, HomeOfficeDia, PeriodoSinControl, PersonalHorario, HorarioHistorial,
                      DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO)
 
 PAGINAS_RRHH = ("RRHH_Fichadas", "RRHH_HomeOffice")
@@ -149,6 +149,46 @@ def _guardar_semana(db: Session, usuario_id: int, dias: List[str], actual: dict,
         fila.tipo = tipo
         fila.modificado_por_id = actual.get("id")
         fila.fecha_modificacion = datetime.utcnow()
+    registrar_historial(db, usuario_id, actual)
+
+
+def registrar_historial(db: Session, usuario_id: int, actual: dict, hoy: Optional[date] = None):
+    """Compara la semana actual de la persona con su historial y registra los días que cambiaron:
+    cierra la vigencia anterior el día de ayer y abre una nueva desde hoy (si cambió dos veces
+    en el mismo día, se corrige la de hoy)."""
+    hoy = hoy or date.today()
+    db.flush()
+    actuales = {f.dia_semana: f for f in db.query(HomeOfficeDia).filter(HomeOfficeDia.usuario_id == usuario_id)}
+    abiertos = {h.dia_semana: h for h in db.query(HorarioHistorial).filter(
+        HorarioHistorial.usuario_id == usuario_id, HorarioHistorial.vigente_hasta.is_(None))}
+    for d in range(len(DIAS_SEMANA)):
+        f = actuales.get(d)
+        valores = (f.tipo, f.franja, f.hora_desde, f.hora_hasta, f.lugar) if f else (TIPO_POR_DEFECTO, None, None, None, None)
+        h = abiertos.get(d)
+        if h is not None and (h.tipo, h.franja, h.hora_desde, h.hora_hasta, h.lugar) == valores:
+            continue
+        if h is not None and h.vigente_desde >= hoy:
+            h.tipo, h.franja, h.hora_desde, h.hora_hasta, h.lugar = valores
+            h.modificado_por_id = actual.get("id")
+            h.fecha_registro = datetime.utcnow()
+            continue
+        if h is not None:
+            h.vigente_hasta = hoy - timedelta(days=1)
+        tipo, franja, desde, hasta, lugar = valores
+        db.add(HorarioHistorial(usuario_id=usuario_id, dia_semana=d, tipo=tipo, franja=franja,
+                                hora_desde=desde, hora_hasta=hasta, lugar=lugar, vigente_desde=hoy,
+                                modificado_por_id=actual.get("id")))
+
+
+def horario_en_fecha(db: Session, usuario_id: int, fecha: date) -> Optional[HorarioHistorial]:
+    """Horario que tenía la persona ese día (None si es fin de semana o no había nada registrado)."""
+    if fecha.weekday() >= len(DIAS_SEMANA):
+        return None
+    return (db.query(HorarioHistorial)
+            .filter(HorarioHistorial.usuario_id == usuario_id, HorarioHistorial.dia_semana == fecha.weekday(),
+                    HorarioHistorial.vigente_desde <= fecha,
+                    or_(HorarioHistorial.vigente_hasta.is_(None), HorarioHistorial.vigente_hasta >= fecha))
+            .order_by(HorarioHistorial.vigente_desde.desc()).first())
 
 
 def _guardar_observacion(db: Session, usuario_id: int, observacion: Optional[str]):
@@ -434,6 +474,7 @@ def aplicar_fila_planilla(db: Session, usuario_id: int, p: dict, orden: int, act
     ph.nombre_planilla = p["nombre"][:150]
     ph.orden = orden
     ph.fecha_importacion = datetime.utcnow()
+    registrar_historial(db, usuario_id, actual)
     return ph
 
 
@@ -543,3 +584,50 @@ def exportar_horarios(db: Session = Depends(get_db)):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=Horarios_{date.today():%Y-%m-%d}.xlsx"},
     )
+
+
+
+# ---------------------------------------------------------------------------
+# Historial de horarios
+# ---------------------------------------------------------------------------
+def _hora(t) -> Optional[str]:
+    return t.strftime("%H:%M") if t else None
+
+
+@router.get("/horarios/historial/{usuario_id}", dependencies=[Depends(_home_office)])
+def historial_horarios(usuario_id: int, db: Session = Depends(get_db)):
+    """Vigencias del horario de una persona, de la más reciente a la más vieja."""
+    u = db.query(User).filter(User.id == usuario_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    filas = (db.query(HorarioHistorial).filter(HorarioHistorial.usuario_id == usuario_id)
+             .order_by(HorarioHistorial.vigente_desde.desc(), HorarioHistorial.dia_semana).all())
+    autores = {x.id: f"{x.apellido}, {x.nombre}" for x in db.query(User).filter(
+        User.id.in_({h.modificado_por_id for h in filas if h.modificado_por_id}))}
+    return {
+        "usuario": f"{u.apellido}, {u.nombre}",
+        "vigencias": [{
+            "dia": DIAS_SEMANA[h.dia_semana], "dia_semana": h.dia_semana, "tipo": h.tipo, "franja": h.franja,
+            "desde": _hora(h.hora_desde), "hasta": _hora(h.hora_hasta), "lugar": h.lugar,
+            "vigente_desde": h.vigente_desde, "vigente_hasta": h.vigente_hasta,
+            "modificado_por": autores.get(h.modificado_por_id),
+        } for h in filas],
+    }
+
+
+@router.get("/horarios/en-fecha", dependencies=[Depends(_home_office)])
+def horarios_en_fecha(fecha: date, db: Session = Depends(get_db)):
+    """Horario de cada persona en una fecha (para cruzar con las fichadas de ese día)."""
+    if fecha.weekday() >= len(DIAS_SEMANA):
+        return {"fecha": fecha, "dia": None, "personas": []}
+    filas = (db.query(HorarioHistorial, User).join(User, HorarioHistorial.usuario_id == User.id)
+             .filter(HorarioHistorial.dia_semana == fecha.weekday(), HorarioHistorial.vigente_desde <= fecha,
+                     or_(HorarioHistorial.vigente_hasta.is_(None), HorarioHistorial.vigente_hasta >= fecha))
+             .order_by(User.apellido, User.nombre).all())
+    return {
+        "fecha": fecha, "dia": DIAS_SEMANA[fecha.weekday()],
+        "personas": [{
+            "usuario_id": u.id, "nombre": f"{u.apellido}, {u.nombre}", "cuil": u.cuil,
+            "tipo": h.tipo, "franja": h.franja, "desde": _hora(h.hora_desde), "hasta": _hora(h.hora_hasta), "lugar": h.lugar,
+        } for h, u in filas],
+    }
