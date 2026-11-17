@@ -76,10 +76,16 @@ async function fiCargar() {
     fiMensaje("Cargando…");
     try {
         const res = await fetch(`/api/rrhh/fichadas?${params}`, { headers: fiHeaders() });
-        if (!res.ok) { fiMensaje(await fiError(res, "No se pudieron cargar las fichadas.")); return; }
+        if (!res.ok) {
+            const msg = await fiError(res, "No se pudieron cargar las fichadas.");
+            fiMensaje(msg);
+            document.getElementById("fi-alertas").innerHTML = `<tr><td colspan="3" class="fi-aviso">${escapeHTML(msg)}</td></tr>`;
+            return;
+        }
         const r = await res.json();
         if (!r.desde) {
             fiMensaje("Todavía no hay fichadas importadas. Usá el botón Importar Excel.");
+            fiListadoAlertas([]);
             document.getElementById("fi-periodo").textContent = "";
             fiResumen([]);
             return;
@@ -92,6 +98,7 @@ async function fiCargar() {
         document.getElementById("fi-periodo").textContent =
             `Período: ${fiFecha(r.desde)}${r.desde === r.hasta ? "" : " al " + fiFecha(r.hasta)} · ${r.filas.length} fila(s)`;
         fiResumen(r.resumen);
+        fiListadoAlertas(r.filas);
         if (!r.filas.length) { fiMensaje("No hay filas para mostrar con estos filtros."); return; }
         document.getElementById("tabla-fichadas").innerHTML = r.filas.map(f => `
             <tr>
@@ -110,6 +117,22 @@ async function fiCargar() {
     } catch (e) {
         fiMensaje("No se pudo conectar con el servidor.");
     }
+}
+
+// Una fila por alerta: Usuario | Motivo de alerta | Detalle (con el color de cada tipo)
+function fiListadoAlertas(filas) {
+    const items = [];
+    filas.forEach(f => f.alertas
+        .filter(a => !FI.alerta || a.codigo === FI.alerta)
+        .forEach(a => items.push({ f, a })));
+    document.getElementById("fi-cant-alertas").textContent = items.length ? `(${items.length})` : "";
+    document.getElementById("fi-alertas").innerHTML = items.length ? items.map(({ f, a }) => `
+        <tr class="fi-fila-alerta ${a.codigo}">
+            <td><b>${escapeHTML(f.nombre)}</b><br><span class="fi-sub">${escapeHTML(f.sector || "")} · ${fiFecha(f.fecha)}</span></td>
+            <td><span class="fi-alerta ${a.codigo}">${escapeHTML(a.texto)}</span></td>
+            <td>${escapeHTML(a.detalle || "")}</td>
+        </tr>`).join("")
+        : `<tr><td colspan="3" class="fi-aviso">No hay alertas para mostrar con estos filtros.</td></tr>`;
 }
 
 async function fiCargarArchivos() {

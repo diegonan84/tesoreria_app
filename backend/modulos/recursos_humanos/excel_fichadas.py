@@ -127,6 +127,44 @@ def calcular_alertas(fila: dict) -> List[dict]:
     return alertas
 
 
+def _diferencia(real: Optional[time], teorico: Optional[time], que: str) -> Optional[str]:
+    a, b = _en_minutos(real), _en_minutos(teorico)
+    if a is None or b is None or a == b:
+        return None
+    dif = a - b
+    if que == "ingreso":
+        return f"entró {hhmm(abs(dif))} h {'tarde' if dif > 0 else 'antes'}"
+    return f"salió {hhmm(abs(dif))} h {'después' if dif > 0 else 'antes'}"
+
+
+def detalle_alerta(codigo: str, fila: dict) -> str:
+    """Explicación de la alerta con los datos del día (para el listado de alertas)."""
+    h = lambda t: t.strftime("%H:%M") if t else "—"
+    horas = fila.get("cant_horas_min")
+    trabajadas = hhmm(horas) if horas is not None else "0:00"
+    teorico = f"Teórico {h(fila.get('t_ingreso'))} a {h(fila.get('t_salida'))}"
+    real = f"real {h(fila.get('r_ingreso'))} a {h(fila.get('r_salida'))}"
+    if codigo == ALERTA_COMPENSAR:
+        falta = hhmm(JORNADA_MIN - (horas or 0))
+        if not fila.get("r_ingreso") and not fila.get("r_salida"):
+            return f"No registró fichadas; le faltan {falta} h de la jornada de 7:00 h."
+        return f"Trabajó {trabajadas} h de 7:00 h; le faltan {falta} h ({teorico}, {real})."
+    if codigo == ALERTA_CAMBIO_HORARIO:
+        partes = []
+        for que, r, t in (("ingreso", "r_ingreso", "t_ingreso"), ("salida", "r_salida", "t_salida")):
+            d = _diferencia(fila.get(r), fila.get(t), que)
+            a, b = _en_minutos(fila.get(r)), _en_minutos(fila.get(t))
+            if d and a is not None and b is not None and abs(a - b) > TOLERANCIA_CAMBIO_MIN:
+                partes.append(d)
+        return f"{teorico}, {real}: " + " y ".join(partes) + " (más de 1 h de diferencia)."
+    if codigo == ALERTA_ERROR_FICHAR:
+        return f"No convocado: registró {trabajadas} h, menos de las 7:00 h ({real})."
+    if codigo == ALERTA_FALTA_REGISTRO:
+        faltan = [n for n, k in (("ingreso", "r_ingreso"), ("salida", "r_salida")) if not fila.get(k)]
+        return f"Falta la fichada de {' y '.join(faltan)}."
+    return ""
+
+
 def leer(contenido: bytes) -> dict:
     """{"hoja", "filas": [...], "avisos": [...], "desde", "hasta"}"""
     wb = load_workbook(io.BytesIO(contenido), data_only=True)

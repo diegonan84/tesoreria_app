@@ -23,6 +23,11 @@
         .fi-alerta.ERROR_FICHAR { background: #fdecea; color: #b3261e; border: 1px solid #f1a9a3; }
         .fi-alerta.FALTA_REGISTRO { background: #fff8e1; color: #6d5600; border: 1px solid #e6cf7a; }
         .fi-ok { color: #2e7d32; font-size: 0.85em; }
+        tr.fi-fila-alerta td:first-child { border-left: 4px solid transparent; }
+        tr.fi-fila-alerta.FALTA_COMPENSAR td:first-child { border-left-color: #f0b37e; }
+        tr.fi-fila-alerta.CAMBIO_HORARIO td:first-child { border-left-color: #9fa8da; }
+        tr.fi-fila-alerta.ERROR_FICHAR td:first-child { border-left-color: #f1a9a3; }
+        tr.fi-fila-alerta.FALTA_REGISTRO td:first-child { border-left-color: #e6cf7a; }
         .fi-dif { color: #b3261e; font-weight: 600; }
         .fi-aviso { text-align: center; color: #6b7c85; padding: 20px; }
         #fi-resultado { display: none; }
@@ -65,7 +70,16 @@
         <div class="card fi-card" id="fi-resultado"></div>
 
         <div class="card fi-card" style="overflow-x:auto;">
-            <div class="fi-sub" id="fi-periodo" style="margin-bottom:8px;"></div>
+            <h3 style="margin:0 0 8px; font-size:1.05em; color:#1a3644;">Listado de alertas <span class="fi-sub" id="fi-cant-alertas"></span></h3>
+            <table class="fi-tabla">
+                <thead><tr><th style="width:24%">Usuario</th><th style="width:22%">Motivo de alerta</th><th>Detalle</th></tr></thead>
+                <tbody id="fi-alertas"><tr><td colspan="3" class="fi-aviso">Cargando…</td></tr></tbody>
+            </table>
+        </div>
+
+        <details class="card fi-card" style="overflow-x:auto;">
+            <summary style="cursor:pointer; font-weight:600;">Detalle por persona (teórico, real, horas e incidencia)</summary>
+            <div class="fi-sub" id="fi-periodo" style="margin:8px 0;"></div>
             <table class="fi-tabla">
                 <thead>
                     <tr>
@@ -81,7 +95,7 @@
                 </thead>
                 <tbody id="tabla-fichadas"><tr><td colspan="8" class="fi-aviso">Cargando…</td></tr></tbody>
             </table>
-        </div>
+        </details>
 
         <details class="card fi-card">
             <summary style="cursor:pointer; font-weight:600;">Archivos importados</summary>

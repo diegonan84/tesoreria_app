@@ -767,8 +767,17 @@ def _fichada_out(x: FichadaDiaria, sector: Optional[str]) -> dict:
         "real_ingreso": h(x.real_ingreso), "real_salida": h(x.real_salida),
         "horas": excel_fichadas.hhmm(x.horas_min) if x.horas_min is not None else None,
         "incidencia": x.incidencia, "estado_incidencia": x.estado_incidencia, "estado": x.estado,
-        "alertas": json.loads(x.alertas) if x.alertas else [],
+        "alertas": _alertas_con_detalle(x),
     }
+
+
+def _alertas_con_detalle(x: FichadaDiaria) -> list:
+    if not x.alertas:
+        return []
+    datos = {"t_ingreso": x.teorico_ingreso, "t_salida": x.teorico_salida, "r_ingreso": x.real_ingreso,
+             "r_salida": x.real_salida, "cant_horas_min": x.horas_min}
+    return [{**a, "motivo": excel_fichadas.NOMBRES_ALERTA.get(a["codigo"], a["texto"]),
+             "detalle": excel_fichadas.detalle_alerta(a["codigo"], datos)} for a in json.loads(x.alertas)]
 
 
 @router.get("/fichadas", dependencies=[Depends(_fichadas)])
