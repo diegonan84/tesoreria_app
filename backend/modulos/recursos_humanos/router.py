@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from backend.database import get_db
@@ -22,9 +22,11 @@ from backend.modulos.auditoria.service import registrar_evento
 
 import json
 
-from . import schemas, excel_home_office, excel_horarios, nombres
+from . import schemas, excel_home_office, excel_horarios, excel_fichadas, nombres
+import hashlib
 from .franjas import leer_franja
 from .models import (Marcacion, HomeOfficeDia, PeriodoSinControl, PersonalHorario, HorarioHistorial,
+                     FichadaArchivo, FichadaDiaria,
                      DIAS_SEMANA, TIPOS_DIA, TIPO_POR_DEFECTO)
 
 PAGINAS_RRHH = ("RRHH_Fichadas", "RRHH_HomeOffice")
@@ -631,3 +633,188 @@ def horarios_en_fecha(fecha: date, db: Session = Depends(get_db)):
             "tipo": h.tipo, "franja": h.franja, "desde": _hora(h.hora_desde), "hasta": _hora(h.hora_hasta), "lugar": h.lugar,
         } for h, u in filas],
     }
+
+
+
+# ---------------------------------------------------------------------------
+# Control de fichadas: importación del reporte "Asistencia biométrico" y alertas
+# ---------------------------------------------------------------------------
+_CAMPOS_FICHADA = ("nombre", "reparticion", "cod_reg", "feriado", "tipo_horario", "convocado",
+                   "teorico_ingreso", "teorico_salida", "real_ingreso", "real_salida", "horas_min",
+                   "eximido", "incidencia", "estado_incidencia", "estado", "alertas")
+
+
+def _valores_fichada(f: dict) -> dict:
+    return {
+        "nombre": f["nombre"][:150], "reparticion": (f["reparticion"] or "")[:150] or None,
+        "cod_reg": (f["cod_reg"] or "")[:100] or None, "feriado": f["feriado"], "tipo_horario": (f["tipo_horario"] or "")[:80] or None,
+        "convocado": f["convocado"], "teorico_ingreso": f["t_ingreso"], "teorico_salida": f["t_salida"],
+        "real_ingreso": f["r_ingreso"], "real_salida": f["r_salida"], "horas_min": f["cant_horas_min"],
+        "eximido": f["eximido"], "incidencia": (f["incidencia"] or "")[:40] or None,
+        "estado_incidencia": (f["estado_incidencia"] or "")[:150] or None, "estado": (f["estado"] or "")[:120] or None,
+        "alertas": json.dumps(f["alertas"], ensure_ascii=False) if f["alertas"] else None,
+    }
+
+
+def _fecha_hora_local(dt: Optional[datetime]) -> Optional[str]:
+    """Las fechas se guardan en UTC; Argentina es UTC-3 (sin horario de verano)."""
+    return (dt - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M") if dt else None
+
+
+@router.post("/fichadas/importar")
+async def importar_fichadas(
+    request: Request, archivo: UploadFile = File(...),
+    simular: bool = Query(False, description="true = solo revisar el archivo, sin grabar"),
+    db: Session = Depends(get_db), actual=Depends(_fichadas),
+):
+    """Importa el Excel de asistencia. Rechaza un archivo que ya se subió (mismo contenido).
+    Por cada CUIL y fecha guarda una fila; si ese día ya estaba cargado por otro archivo, se actualiza."""
+    contenido = await archivo.read()
+    if len(contenido) > MAX_EXCEL_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo supera los 5 MB.")
+    huella = hashlib.sha256(contenido).hexdigest()
+    previo = db.query(FichadaArchivo).filter(FichadaArchivo.hash_sha256 == huella).first()
+    if previo:
+        quien = db.query(User).filter(User.id == previo.subido_por_id).first()
+        raise HTTPException(status_code=409, detail=(
+            f"Este archivo ya se importó el {_fecha_hora_local(previo.fecha_subida)}"
+            + (f" por {quien.apellido}, {quien.nombre}" if quien else "")
+            + f" con el nombre \"{previo.nombre}\". No se volvió a cargar."))
+    try:
+        datos = excel_fichadas.leer(contenido)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Tiene que ser un Excel .xlsx.")
+    if not datos["filas"]:
+        raise HTTPException(status_code=400, detail="El archivo no tiene filas de asistencia.")
+
+    usuarios = {excel_home_office.solo_digitos(u.cuil): u.id for u in db.query(User.id, User.cuil)}
+    existentes = {(x.cuil, x.fecha): x for x in db.query(FichadaDiaria).filter(
+        FichadaDiaria.fecha >= datos["desde"], FichadaDiaria.fecha <= datos["hasta"])}
+    nuevas = actualizadas = iguales = 0
+    sin_usuario, alertas = [], {}
+    archivos_pisados = set()
+
+    arch = None
+    if not simular:
+        arch = FichadaArchivo(nombre=(archivo.filename or "sin nombre")[:200], hash_sha256=huella,
+                              desde=datos["desde"], hasta=datos["hasta"], filas=len(datos["filas"]),
+                              subido_por_id=actual.get("id"))
+        db.add(arch)
+        db.flush()
+
+    for f in datos["filas"]:
+        cuil = excel_home_office.solo_digitos(f["cuil"])
+        usuario_id = usuarios.get(cuil)
+        if usuario_id is None:
+            sin_usuario.append(f"{f['nombre']} ({f['cuil']})")
+        for a in f["alertas"]:
+            alertas[a["codigo"]] = alertas.get(a["codigo"], 0) + 1
+        valores = _valores_fichada(f)
+        previa = existentes.get((cuil, f["fecha"]))
+        if previa is not None:
+            if all(getattr(previa, k) == v for k, v in valores.items()) and previa.usuario_id == usuario_id:
+                iguales += 1
+            else:
+                actualizadas += 1
+                archivos_pisados.add(previa.archivo_id)
+            if not simular:
+                for k, v in valores.items():
+                    setattr(previa, k, v)
+                previa.usuario_id, previa.archivo_id, previa.fecha_carga = usuario_id, arch.id, datetime.utcnow()
+        else:
+            nuevas += 1
+            if not simular:
+                db.add(FichadaDiaria(archivo_id=arch.id, usuario_id=usuario_id, cuil=cuil, fecha=f["fecha"], **valores))
+
+    resultado = {
+        "simulacion": simular, "archivo": archivo.filename, "hoja": datos["hoja"],
+        "desde": datos["desde"], "hasta": datos["hasta"], "filas": len(datos["filas"]),
+        "nuevas": nuevas, "actualizadas": actualizadas, "iguales": iguales,
+        "ya_cargado": bool(existentes), "sin_usuario": sin_usuario, "avisos": datos["avisos"],
+        "alertas": [{"codigo": k, "nombre": excel_fichadas.NOMBRES_ALERTA[k], "cantidad": n} for k, n in alertas.items()],
+    }
+    if simular:
+        db.rollback()
+        return resultado
+    db.commit()
+    rango = _fecha_corta(datos["desde"]) + ("" if datos["desde"] == datos["hasta"] else f" al {_fecha_corta(datos['hasta'])}")
+    _auditar(db, actual, request, f"Importación de fichadas ({archivo.filename}, {rango}): {nuevas} nuevas, "
+                                  f"{actualizadas} actualizadas, {sum(alertas.values())} alertas")
+    return resultado
+
+
+def _fichada_out(x: FichadaDiaria, sector: Optional[str]) -> dict:
+    h = lambda t: t.strftime("%H:%M") if t else None
+    return {
+        "id": x.id, "usuario_id": x.usuario_id, "cuil": x.cuil, "nombre": x.nombre, "sector": sector or x.reparticion,
+        "fecha": x.fecha, "convocado": x.convocado, "feriado": x.feriado,
+        "teorico_ingreso": h(x.teorico_ingreso), "teorico_salida": h(x.teorico_salida),
+        "real_ingreso": h(x.real_ingreso), "real_salida": h(x.real_salida),
+        "horas": excel_fichadas.hhmm(x.horas_min) if x.horas_min is not None else None,
+        "incidencia": x.incidencia, "estado_incidencia": x.estado_incidencia, "estado": x.estado,
+        "alertas": json.loads(x.alertas) if x.alertas else [],
+    }
+
+
+@router.get("/fichadas", dependencies=[Depends(_fichadas)])
+def listar_fichadas(
+    desde: Optional[date] = None, hasta: Optional[date] = None,
+    q: Optional[str] = None, solo_alertas: bool = False, alerta: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Asistencia importada del período (por defecto, el último día cargado)."""
+    if desde is None:
+        ultimo = db.query(func.max(FichadaDiaria.fecha)).scalar()
+        if ultimo is None:
+            return {"desde": None, "hasta": None, "filas": [], "resumen": []}
+        desde = hasta = ultimo
+    hasta = hasta or desde
+    consulta = (db.query(FichadaDiaria, User).outerjoin(User, FichadaDiaria.usuario_id == User.id)
+                .options(joinedload(User.sector))
+                .filter(FichadaDiaria.fecha >= desde, FichadaDiaria.fecha <= hasta))
+    if q and q.strip():
+        patron = f"%{q.strip()}%"
+        consulta = consulta.filter(or_(FichadaDiaria.nombre.ilike(patron), FichadaDiaria.cuil.ilike(patron)))
+    if solo_alertas or alerta:
+        consulta = consulta.filter(FichadaDiaria.alertas.isnot(None))
+    if alerta:
+        consulta = consulta.filter(FichadaDiaria.alertas.like(f'%"{alerta}"%'))
+    filas = [_fichada_out(x, u.sector.nombre if u and u.sector else None)
+             for x, u in consulta.order_by(FichadaDiaria.fecha.desc(), FichadaDiaria.nombre).all()]
+    resumen = {}
+    for f in filas:
+        for a in f["alertas"]:
+            resumen[a["codigo"]] = resumen.get(a["codigo"], 0) + 1
+    return {
+        "desde": desde, "hasta": hasta, "filas": filas,
+        "resumen": [{"codigo": k, "nombre": excel_fichadas.NOMBRES_ALERTA[k], "cantidad": resumen.get(k, 0)}
+                    for k in excel_fichadas.NOMBRES_ALERTA],
+    }
+
+
+@router.get("/fichadas/archivos", dependencies=[Depends(_fichadas)])
+def listar_archivos_fichadas(db: Session = Depends(get_db)):
+    filas = (db.query(FichadaArchivo, User).outerjoin(User, FichadaArchivo.subido_por_id == User.id)
+             .order_by(FichadaArchivo.fecha_subida.desc()).limit(100).all())
+    vigentes = dict(db.query(FichadaDiaria.archivo_id, func.count()).group_by(FichadaDiaria.archivo_id).all())
+    return [{
+        "id": a.id, "nombre": a.nombre, "desde": a.desde, "hasta": a.hasta, "filas": a.filas,
+        "filas_vigentes": vigentes.get(a.id, 0),
+        "subido_por": f"{u.apellido}, {u.nombre}" if u else None, "fecha_subida": a.fecha_subida,
+    } for a, u in filas]
+
+
+@router.delete("/fichadas/archivos/{archivo_id}")
+def borrar_archivo_fichadas(archivo_id: int, request: Request, db: Session = Depends(get_db), actual=Depends(_fichadas)):
+    """Quita un archivo importado y las filas que todavía vienen de él (por ejemplo, para volver a subirlo corregido)."""
+    a = db.query(FichadaArchivo).filter(FichadaArchivo.id == archivo_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado.")
+    n = db.query(FichadaDiaria).filter(FichadaDiaria.archivo_id == archivo_id).delete()
+    nombre = a.nombre
+    db.delete(a)
+    db.commit()
+    _auditar(db, actual, request, f"Se quitó la importación de fichadas \"{nombre}\" ({n} filas)")
+    return {"ok": True, "filas_borradas": n}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Text, Time, UniqueConstraint
+from sqlalchemy import Boolean, Column, Integer, String, Date, DateTime, ForeignKey, Text, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
@@ -105,3 +105,48 @@ class HorarioHistorial(Base):
     vigente_hasta = Column(Date, nullable=True, index=True)  # null = vigente hoy
     modificado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
+
+
+
+class FichadaArchivo(Base):
+    """Cada Excel de asistencia importado. El hash del contenido evita subir dos veces el mismo archivo."""
+    __tablename__ = "rrhh_fichadas_archivos"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(200), nullable=False)
+    hash_sha256 = Column(String(64), nullable=False, unique=True, index=True)
+    desde = Column(Date, nullable=True)
+    hasta = Column(Date, nullable=True)
+    filas = Column(Integer, nullable=False, default=0)
+    subido_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    fecha_subida = Column(DateTime, default=datetime.utcnow)
+
+
+class FichadaDiaria(Base):
+    """Asistencia de una persona en un día, tal como la informa el reporte biométrico, con sus alertas.
+    Una sola fila por CUIL y fecha: si se importa otro archivo con el mismo día, se actualiza."""
+    __tablename__ = "rrhh_fichadas_diarias"
+    __table_args__ = (UniqueConstraint("cuil", "fecha", name="uq_rrhh_fichada_cuil_fecha"),)
+
+    id = Column(Integer, primary_key=True)
+    archivo_id = Column(Integer, ForeignKey("rrhh_fichadas_archivos.id", ondelete="CASCADE"), nullable=False, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    cuil = Column(String(20), nullable=False, index=True)
+    nombre = Column(String(150), nullable=False)
+    reparticion = Column(String(150), nullable=True)
+    cod_reg = Column(String(100), nullable=True)
+    fecha = Column(Date, nullable=False, index=True)
+    feriado = Column(Boolean, default=False)
+    tipo_horario = Column(String(80), nullable=True)
+    convocado = Column(Boolean, nullable=False, default=False)
+    teorico_ingreso = Column(Time, nullable=True)
+    teorico_salida = Column(Time, nullable=True)
+    real_ingreso = Column(Time, nullable=True)
+    real_salida = Column(Time, nullable=True)
+    horas_min = Column(Integer, nullable=True)      # Cant Horas (R) en minutos
+    eximido = Column(Boolean, default=False)
+    incidencia = Column(String(40), nullable=True)
+    estado_incidencia = Column(String(150), nullable=True)
+    estado = Column(String(120), nullable=True)
+    alertas = Column(Text, nullable=True)           # JSON: [{codigo, texto}]
+    fecha_carga = Column(DateTime, default=datetime.utcnow)
