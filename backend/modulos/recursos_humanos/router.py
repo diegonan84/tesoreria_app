@@ -695,6 +695,7 @@ async def importar_fichadas(
     nuevas = actualizadas = iguales = 0
     sin_usuario, alertas = [], {}
     archivos_pisados = set()
+    incidencias_nuevas = []
 
     arch = None
     if not simular:
@@ -713,6 +714,9 @@ async def importar_fichadas(
             alertas[a["codigo"]] = alertas.get(a["codigo"], 0) + 1
         valores = _valores_fichada(f)
         previa = existentes.get((cuil, f["fecha"]))
+        if previa is not None and not previa.incidencia and valores["incidencia"]:
+            incidencias_nuevas.append(f"{f['nombre']} ({_fecha_corta(f['fecha'])}): {valores['incidencia']}"
+                                      + (f" - {valores['estado_incidencia']}" if valores["estado_incidencia"] else ""))
         if previa is not None:
             if all(getattr(previa, k) == v for k, v in valores.items()) and previa.usuario_id == usuario_id:
                 iguales += 1
@@ -728,8 +732,17 @@ async def importar_fichadas(
             if not simular:
                 db.add(FichadaDiaria(archivo_id=arch.id, usuario_id=usuario_id, cuil=cuil, fecha=f["fecha"], **valores))
 
+    # Otro archivo de un día ya cargado: solo se acepta si completa incidencias que estaban vacías
+    if existentes and not incidencias_nuevas:
+        db.rollback()
+        rango = _fecha_corta(datos["desde"]) + ("" if datos["desde"] == datos["hasta"] else f" al {_fecha_corta(datos['hasta'])}")
+        raise HTTPException(status_code=409, detail=(
+            f"Misma carga de datos: las fichadas del {rango} ya están cargadas y este archivo no completa "
+            "ninguna incidencia que estuviera vacía. No se volvió a cargar."))
+
     resultado = {
         "simulacion": simular, "archivo": archivo.filename, "hoja": datos["hoja"],
+        "incidencias_nuevas": incidencias_nuevas,
         "desde": datos["desde"], "hasta": datos["hasta"], "filas": len(datos["filas"]),
         "nuevas": nuevas, "actualizadas": actualizadas, "iguales": iguales,
         "ya_cargado": bool(existentes), "sin_usuario": sin_usuario, "avisos": datos["avisos"],

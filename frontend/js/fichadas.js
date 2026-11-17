@@ -155,7 +155,8 @@ async function fiImportar(archivo) {
         const rango = fiFecha(r.desde) + (r.desde === r.hasta ? "" : " al " + fiFecha(r.hasta));
         caja.innerHTML = `<b>Revisión de "${escapeHTML(archivo.name)}"</b> (todavía no se guardó nada)<br>
             ${r.filas} filas del ${rango} · ${r.nuevas} nuevas · ${r.actualizadas} cambian · ${r.iguales} iguales a lo ya cargado.
-            ${r.ya_cargado ? `<br><b>Ojo:</b> ese período ya tenía fichadas cargadas de otro archivo; las filas que cambian se reemplazan.` : ""}
+            ${r.ya_cargado ? `<br><b>Ojo:</b> ese período ya estaba cargado; se acepta porque completa ${r.incidencias_nuevas.length} incidencia(s) que estaban vacías:
+                <ul>${r.incidencias_nuevas.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul>` : ""}
             <br>Alertas: ${r.alertas.length ? r.alertas.map(a => `<span class="fi-alerta ${a.codigo}">${escapeHTML(a.nombre)}: ${a.cantidad}</span>`).join(" ") : "ninguna"}
             ${r.sin_usuario.length ? `<details><summary>${r.sin_usuario.length} persona(s) sin usuario en el sistema (se cargan igual)</summary><ul>${r.sin_usuario.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : ""}
             ${r.avisos.length ? `<details><summary>Avisos (${r.avisos.length})</summary><ul>${r.avisos.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : ""}
@@ -182,7 +183,7 @@ async function fiImportar(archivo) {
         };
     } catch (e) {
         if (e.duplicado) {
-            caja.innerHTML = `<b class="fi-error">Archivo repetido.</b> ${escapeHTML(e.message)}
+            caja.innerHTML = `<b class="fi-error">No se cargó.</b> ${escapeHTML(e.message)}
                 <div class="fi-botones"><button type="button" id="fi-cancelar">Cerrar</button></div>`;
             caja.style.display = "block";
             document.getElementById("fi-cancelar").onclick = () => { caja.style.display = "none"; };
