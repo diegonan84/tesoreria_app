@@ -150,3 +150,25 @@ class FichadaDiaria(Base):
     estado = Column(String(120), nullable=True)
     alertas = Column(Text, nullable=True)           # JSON: [{codigo, texto}]
     fecha_carga = Column(DateTime, default=datetime.utcnow)
+
+
+
+class BancoHorasMovimiento(Base):
+    """Banco de horas: cada movimiento suma o resta minutos al saldo de una persona (por CUIL).
+    minutos < 0 = horas que debe. Tipos:
+      SALDO_INICIAL  → lo que traía (Excel de saldo inicial; uno por persona, se reemplaza al reimportar)
+      FICHADA        → lo que debe de un día según el Excel de asistencia (uno por persona y fecha)
+      AJUSTE         → corrección o compensación cargada a mano"""
+    __tablename__ = "rrhh_banco_horas"
+
+    id = Column(Integer, primary_key=True)
+    cuil = Column(String(20), nullable=False, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    nombre = Column(String(150), nullable=True)
+    tipo = Column(String(20), nullable=False, index=True)
+    fecha = Column(Date, nullable=True, index=True)       # día de la fichada (FICHADA) o de la carga
+    minutos = Column(Integer, nullable=False)
+    detalle = Column(String(255), nullable=True)
+    archivo = Column(String(200), nullable=True)
+    creado_por_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)

@@ -34,6 +34,8 @@
         #fi-resultado ul { margin: 6px 0 0 18px; max-height: 160px; overflow-y: auto; }
         .fi-botones { margin-top: 10px; display: flex; gap: 8px; }
         .fi-error { color: #b3261e; }
+        .bh-debe { color: #b3261e; font-weight: 600; }
+        .bh-favor { color: #2e7d32; font-weight: 600; }
         #fi-toast { position: fixed; bottom: 24px; right: 24px; background: #1a3644; color: #fff; padding: 10px 16px;
                     border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 420px; }
         #fi-toast.visible { opacity: 1; }
@@ -49,7 +51,8 @@
     <main class="dashboard-body">
         <h2>Control de Fichadas</h2>
         <p>Elegí el Excel de <b>Asistencia biométrico</b> con <b>Analizar Excel</b> y revisá las alertas de cada persona.
-           Por ahora es <b>solo de consulta</b>: no se guarda nada, así que podés analizar el mismo archivo todas las veces que quieras.
+           El análisis es <b>solo de consulta</b>: no se guarda nada, así que podés analizar el mismo archivo todas las veces que quieras.
+           Lo que cada persona debe pasa al <b>banco de horas</b> solo cuando apretás <b>Sumar al banco de horas</b> (cada día se suma una sola vez).
            Si el día tiene una incidencia cargada (licencia, etc.), no se marca alerta. Los Cód Reg <b>Autoridades Superiores</b> y <b>Externo</b> no se controlan.</p>
 
         <div class="card fi-card">
@@ -60,6 +63,7 @@
                 <label><input type="checkbox" id="f-solo-alertas" checked> Solo con alertas</label>
                 <div class="fi-acciones">
                     <button type="button" id="fi-importar">Analizar Excel</button>
+                    <button type="button" id="bh-sumar" disabled title="Primero analizá un Excel de fichadas">Sumar al banco de horas</button>
                     <input type="file" id="fi-archivo" accept=".xlsx" style="display:none;">
                 </div>
             </div>
@@ -95,11 +99,29 @@
                 <tbody id="tabla-fichadas"><tr><td colspan="8" class="fi-aviso">Elegí un Excel con "Analizar Excel".</td></tr></tbody>
             </table>
         </details>
+        <div class="card fi-card" id="banco-horas">
+            <h3 style="margin:0 0 8px; font-size:1.05em; color:#1a3644;">Banco de horas <span class="fi-sub" id="bh-cuenta"></span></h3>
+            <div class="fi-filtros">
+                <label style="flex:1; min-width:200px;">Persona<br>
+                    <input type="search" id="bh-q" placeholder="Nombre, apellido o CUIL…" style="width:100%;">
+                </label>
+                <div class="fi-acciones">
+                    <button type="button" id="bh-importar" title="Excel con columna CUIL y una columna Debe (H:MM) o Saldo (negativo = debe)">Importar saldo inicial</button>
+                    <input type="file" id="bh-archivo" accept=".xlsx" style="display:none;">
+                </div>
+            </div>
+            <div class="card fi-card" id="bh-resultado" style="display:none; box-shadow:none; border:1px solid #e6eaec;"></div>
+            <table class="fi-tabla" style="margin-top:10px;">
+                <thead><tr><th>Persona</th><th>Saldo</th><th class="c">Movimientos</th><th></th></tr></thead>
+                <tbody id="bh-cuerpo"><tr><td colspan="4" class="fi-aviso">Cargando…</td></tr></tbody>
+            </table>
+        </div>
     </main>
     <div id="fi-toast"></div>
     <script src="/archivos/js/app.js"></script>
     <script src="/archivos/js/notificaciones.js"></script>
     <script src="/archivos/js/chat.js"></script>
     <script src="/archivos/js/fichadas.js"></script>
+    <script src="/archivos/js/banco_horas.js"></script>
 </body>
 </html>
