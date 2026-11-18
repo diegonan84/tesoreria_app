@@ -48,19 +48,18 @@
 
     <main class="dashboard-body">
         <h2>Control de Fichadas</h2>
-        <p>Importá el Excel de <b>Asistencia biométrico</b> y revisá las alertas de cada persona. Si el día tiene una incidencia cargada (licencia, etc.), no se marca alerta.</p>
+        <p>Elegí el Excel de <b>Asistencia biométrico</b> con <b>Analizar Excel</b> y revisá las alertas de cada persona.
+           Por ahora es <b>solo de consulta</b>: no se guarda nada, así que podés analizar el mismo archivo todas las veces que quieras.
+           Si el día tiene una incidencia cargada (licencia, etc.), no se marca alerta.</p>
 
         <div class="card fi-card">
             <div class="fi-filtros">
-                <label>Desde<br><input type="date" id="f-desde"></label>
-                <label>Hasta<br><input type="date" id="f-hasta"></label>
                 <label style="flex:1; min-width:200px;">Persona<br>
                     <input type="search" id="f-q" placeholder="Nombre, apellido o CUIL…" style="width:100%;">
                 </label>
                 <label><input type="checkbox" id="f-solo-alertas" checked> Solo con alertas</label>
-                <button type="button" id="f-buscar">Buscar</button>
                 <div class="fi-acciones">
-                    <button type="button" id="fi-importar">Importar Excel</button>
+                    <button type="button" id="fi-importar">Analizar Excel</button>
                     <input type="file" id="fi-archivo" accept=".xlsx" style="display:none;">
                 </div>
             </div>
@@ -73,7 +72,7 @@
             <h3 style="margin:0 0 8px; font-size:1.05em; color:#1a3644;">Listado de alertas <span class="fi-sub" id="fi-cant-alertas"></span></h3>
             <table class="fi-tabla">
                 <thead><tr><th style="width:24%">Usuario</th><th style="width:22%">Motivo de alerta</th><th>Detalle</th></tr></thead>
-                <tbody id="fi-alertas"><tr><td colspan="3" class="fi-aviso">Cargando…</td></tr></tbody>
+                <tbody id="fi-alertas"><tr><td colspan="3" class="fi-aviso">Elegí un Excel con "Analizar Excel".</td></tr></tbody>
             </table>
         </div>
 
@@ -93,15 +92,7 @@
                         <th>Alertas</th>
                     </tr>
                 </thead>
-                <tbody id="tabla-fichadas"><tr><td colspan="8" class="fi-aviso">Cargando…</td></tr></tbody>
-            </table>
-        </details>
-
-        <details class="card fi-card">
-            <summary style="cursor:pointer; font-weight:600;">Archivos importados</summary>
-            <table class="fi-tabla" style="margin-top:8px;">
-                <thead><tr><th>Archivo</th><th>Período</th><th>Filas</th><th>Subido por</th><th>Fecha</th><th></th></tr></thead>
-                <tbody id="fi-archivos"></tbody>
+                <tbody id="tabla-fichadas"><tr><td colspan="8" class="fi-aviso">Elegí un Excel con "Analizar Excel".</td></tr></tbody>
             </table>
         </details>
     </main>

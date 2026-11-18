@@ -661,6 +661,47 @@ def _fecha_hora_local(dt: Optional[datetime]) -> Optional[str]:
     return (dt - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M") if dt else None
 
 
+@router.post("/fichadas/analizar", dependencies=[Depends(_fichadas)])
+async def analizar_fichadas(archivo: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Solo consulta: lee el Excel de asistencia y devuelve las alertas. No guarda nada,
+    así que el mismo archivo se puede analizar todas las veces que haga falta."""
+    contenido = await archivo.read()
+    if len(contenido) > MAX_EXCEL_BYTES:
+        raise HTTPException(status_code=400, detail="El archivo supera los 5 MB.")
+    try:
+        datos = excel_fichadas.leer(contenido)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Tiene que ser un Excel .xlsx.")
+
+    sectores = {excel_home_office.solo_digitos(u.cuil): (u.sector.nombre if u.sector else None)
+                for u in db.query(User).options(joinedload(User.sector))}
+    h = lambda t: t.strftime("%H:%M") if t else None
+    filas, resumen = [], {}
+    for f in datos["filas"]:
+        cuil = excel_home_office.solo_digitos(f["cuil"])
+        alertas = [{**a, "motivo": excel_fichadas.NOMBRES_ALERTA[a["codigo"]],
+                    "detalle": excel_fichadas.detalle_alerta(a["codigo"], f)} for a in f["alertas"]]
+        for a in alertas:
+            resumen[a["codigo"]] = resumen.get(a["codigo"], 0) + 1
+        filas.append({
+            "cuil": f["cuil"], "nombre": f["nombre"], "sector": sectores.get(cuil) or f["reparticion"],
+            "en_sistema": cuil in sectores, "fecha": f["fecha"], "convocado": f["convocado"],
+            "teorico_ingreso": h(f["t_ingreso"]), "teorico_salida": h(f["t_salida"]),
+            "real_ingreso": h(f["r_ingreso"]), "real_salida": h(f["r_salida"]),
+            "horas": excel_fichadas.hhmm(f["cant_horas_min"]) if f["cant_horas_min"] is not None else None,
+            "incidencia": f["incidencia"], "estado_incidencia": f["estado_incidencia"], "estado": f["estado"],
+            "alertas": alertas,
+        })
+    filas.sort(key=lambda x: x["nombre"].upper())
+    return {
+        "archivo": archivo.filename, "hoja": datos["hoja"], "desde": datos["desde"], "hasta": datos["hasta"],
+        "filas": filas, "avisos": datos["avisos"],
+        "resumen": [{"codigo": k, "nombre": n, "cantidad": resumen.get(k, 0)} for k, n in excel_fichadas.NOMBRES_ALERTA.items()],
+    }
+
+
 @router.post("/fichadas/importar")
 async def importar_fichadas(
     request: Request, archivo: UploadFile = File(...),

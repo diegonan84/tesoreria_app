@@ -3,7 +3,8 @@
 // Importación del Excel "Asistencia biométrico" y alertas por persona y día
 // ============================================================================
 
-const FI = { alerta: null };
+// analisis: el último Excel analizado (solo en pantalla, no se guarda)
+const FI = { alerta: null, analisis: null };
 
 function fiHeaders() {
     return { "Authorization": `Bearer ${localStorage.getItem("token")}` };
@@ -62,61 +63,35 @@ function fiResumen(resumen) {
         </button>`).join("");
 }
 
-async function fiCargar() {
-    const params = new URLSearchParams();
-    const desde = document.getElementById("f-desde").value;
-    const hasta = document.getElementById("f-hasta").value;
-    const q = document.getElementById("f-q").value.trim();
-    if (desde) params.set("desde", desde);
-    if (desde) params.set("hasta", hasta || desde);
-    if (q) params.set("q", q);
-    if (document.getElementById("f-solo-alertas").checked) params.set("solo_alertas", "true");
-    if (FI.alerta) params.set("alerta", FI.alerta);
-
-    fiMensaje("Cargando…");
-    try {
-        const res = await fetch(`/api/rrhh/fichadas?${params}`, { headers: fiHeaders() });
-        if (!res.ok) {
-            const msg = await fiError(res, "No se pudieron cargar las fichadas.");
-            fiMensaje(msg);
-            document.getElementById("fi-alertas").innerHTML = `<tr><td colspan="3" class="fi-aviso">${escapeHTML(msg)}</td></tr>`;
-            return;
-        }
-        const r = await res.json();
-        if (!r.desde) {
-            fiMensaje("Todavía no hay fichadas importadas. Usá el botón Importar Excel.");
-            fiListadoAlertas([]);
-            document.getElementById("fi-periodo").textContent = "";
-            fiResumen([]);
-            return;
-        }
-        // Si no se eligió período, mostramos el que devolvió el servidor (el último día cargado)
-        if (!desde) {
-            document.getElementById("f-desde").value = String(r.desde).slice(0, 10);
-            document.getElementById("f-hasta").value = String(r.hasta).slice(0, 10);
-        }
-        document.getElementById("fi-periodo").textContent =
-            `Período: ${fiFecha(r.desde)}${r.desde === r.hasta ? "" : " al " + fiFecha(r.hasta)} · ${r.filas.length} fila(s)`;
-        fiResumen(r.resumen);
-        fiListadoAlertas(r.filas);
-        if (!r.filas.length) { fiMensaje("No hay filas para mostrar con estos filtros."); return; }
-        document.getElementById("tabla-fichadas").innerHTML = r.filas.map(f => `
-            <tr>
-                <td>${escapeHTML(f.nombre)}<br><span class="fi-sub">${escapeHTML(f.sector || "")}</span></td>
-                <td>${fiFecha(f.fecha)}</td>
-                <td class="c">${f.convocado ? "Sí" : "No"}</td>
-                <td class="c">${escapeHTML(f.teorico_ingreso || "—")} a ${escapeHTML(f.teorico_salida || "—")}</td>
-                <td class="c">${fiHoraReal(f.real_ingreso, f.teorico_ingreso)} a ${fiHoraReal(f.real_salida, f.teorico_salida)}</td>
-                <td class="c">${escapeHTML(f.horas || "—")}</td>
-                <td>${f.incidencia ? `<b>${escapeHTML(f.incidencia)}</b> ${escapeHTML(f.estado_incidencia || "")}<br>` : ""}
-                    <span class="fi-sub">${escapeHTML(f.estado || "")}</span></td>
-                <td>${f.alertas.length
-                    ? f.alertas.map(a => `<span class="fi-alerta ${a.codigo}">${escapeHTML(a.texto)}</span>`).join("")
-                    : `<span class="fi-ok">${f.incidencia ? "Con incidencia" : "Sin alertas"}</span>`}</td>
-            </tr>`).join("");
-    } catch (e) {
-        fiMensaje("No se pudo conectar con el servidor.");
-    }
+// Muestra el último análisis aplicando los filtros de pantalla (no consulta la base)
+function fiPintar() {
+    const r = FI.analisis;
+    if (!r) return;
+    const q = document.getElementById("f-q").value.trim().toLowerCase();
+    const soloAlertas = document.getElementById("f-solo-alertas").checked;
+    const filas = r.filas.filter(f =>
+        (!q || `${f.nombre} ${f.cuil}`.toLowerCase().includes(q)) &&
+        (!soloAlertas || f.alertas.length) &&
+        (!FI.alerta || f.alertas.some(a => a.codigo === FI.alerta)));
+    document.getElementById("fi-periodo").textContent =
+        `"${r.archivo}" · ${fiFecha(r.desde)}${r.desde === r.hasta ? "" : " al " + fiFecha(r.hasta)} · ${r.filas.length} personas`;
+    fiResumen(r.resumen);
+    fiListadoAlertas(filas);
+    if (!filas.length) { fiMensaje("No hay filas para mostrar con estos filtros."); return; }
+    document.getElementById("tabla-fichadas").innerHTML = filas.map(f => `
+        <tr>
+            <td>${escapeHTML(f.nombre)}<br><span class="fi-sub">${escapeHTML(f.sector || "")}</span></td>
+            <td>${fiFecha(f.fecha)}</td>
+            <td class="c">${f.convocado ? "Sí" : "No"}</td>
+            <td class="c">${escapeHTML(f.teorico_ingreso || "—")} a ${escapeHTML(f.teorico_salida || "—")}</td>
+            <td class="c">${fiHoraReal(f.real_ingreso, f.teorico_ingreso)} a ${fiHoraReal(f.real_salida, f.teorico_salida)}</td>
+            <td class="c">${escapeHTML(f.horas || "—")}</td>
+            <td>${f.incidencia ? `<b>${escapeHTML(f.incidencia)}</b> ${escapeHTML(f.estado_incidencia || "")}<br>` : ""}
+                <span class="fi-sub">${escapeHTML(f.estado || "")}</span></td>
+            <td>${f.alertas.length
+                ? f.alertas.map(a => `<span class="fi-alerta ${a.codigo}">${escapeHTML(a.texto)}</span>`).join("")
+                : `<span class="fi-ok">${f.incidencia ? "Con incidencia" : "Sin alertas"}</span>`}</td>
+        </tr>`).join("");
 }
 
 // Una fila por alerta: Usuario | Motivo de alerta | Detalle (con el color de cada tipo)
@@ -135,120 +110,52 @@ function fiListadoAlertas(filas) {
         : `<tr><td colspan="3" class="fi-aviso">No hay alertas para mostrar con estos filtros.</td></tr>`;
 }
 
-async function fiCargarArchivos() {
-    const cuerpo = document.getElementById("fi-archivos");
-    try {
-        const res = await fetch("/api/rrhh/fichadas/archivos", { headers: fiHeaders() });
-        if (!res.ok) throw new Error(await fiError(res, "No se pudieron cargar los archivos."));
-        const lista = await res.json();
-        cuerpo.innerHTML = lista.length ? lista.map(a => `
-            <tr>
-                <td>${escapeHTML(a.nombre)}</td>
-                <td>${fiFecha(a.desde)}${a.desde === a.hasta ? "" : " al " + fiFecha(a.hasta)}</td>
-                <td>${a.filas}${a.filas_vigentes !== a.filas ? ` <span class="fi-sub">(${a.filas_vigentes} vigentes)</span>` : ""}</td>
-                <td>${escapeHTML(a.subido_por || "—")}</td>
-                <td>${fiFechaHora(a.fecha_subida)}</td>
-                <td><button type="button" data-borrar="${a.id}" data-nombre="${escapeHTML(a.nombre)}" title="Quitar esta importación">🗑</button></td>
-            </tr>`).join("") : `<tr><td colspan="6" class="fi-aviso">Todavía no se importó ningún archivo.</td></tr>`;
-    } catch (e) {
-        cuerpo.innerHTML = `<tr><td colspan="6" class="fi-aviso">${escapeHTML(e.message)}</td></tr>`;
-    }
-}
-
-async function fiEnviar(archivo, simular) {
-    const datos = new FormData();
-    datos.append("archivo", archivo);
-    const res = await fetch(`/api/rrhh/fichadas/importar?simular=${simular}`, { method: "POST", headers: fiHeaders(), body: datos });
-    if (!res.ok) {
-        const err = new Error(await fiError(res, "No se pudo importar el archivo."));
-        err.duplicado = res.status === 409;
-        throw err;
-    }
-    return res.json();
-}
-
-// Paso 1: revisar el archivo (no graba). Paso 2: "Importar".
-async function fiImportar(archivo) {
+// Solo consulta: el servidor lee el Excel y devuelve las alertas, sin guardar nada
+async function fiAnalizar(archivo) {
     if (!archivo) return;
     const caja = document.getElementById("fi-resultado");
     const boton = document.getElementById("fi-importar");
     boton.disabled = true;
+    boton.textContent = "Analizando…";
     try {
-        const r = await fiEnviar(archivo, true);
-        const rango = fiFecha(r.desde) + (r.desde === r.hasta ? "" : " al " + fiFecha(r.hasta));
-        caja.innerHTML = `<b>Revisión de "${escapeHTML(archivo.name)}"</b> (todavía no se guardó nada)<br>
-            ${r.filas} filas del ${rango} · ${r.nuevas} nuevas · ${r.actualizadas} cambian · ${r.iguales} iguales a lo ya cargado.
-            ${r.ya_cargado ? `<br><b>Ojo:</b> ese período ya estaba cargado; se acepta porque completa ${r.incidencias_nuevas.length} incidencia(s) que estaban vacías:
-                <ul>${r.incidencias_nuevas.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul>` : ""}
-            <br>Alertas: ${r.alertas.length ? r.alertas.map(a => `<span class="fi-alerta ${a.codigo}">${escapeHTML(a.nombre)}: ${a.cantidad}</span>`).join(" ") : "ninguna"}
-            ${r.sin_usuario.length ? `<details><summary>${r.sin_usuario.length} persona(s) sin usuario en el sistema (se cargan igual)</summary><ul>${r.sin_usuario.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : ""}
-            ${r.avisos.length ? `<details><summary>Avisos (${r.avisos.length})</summary><ul>${r.avisos.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : ""}
-            <div class="fi-botones">
-                ${r.nuevas || r.actualizadas ? `<button type="button" id="fi-aplicar">Importar</button>` : ""}
-                <button type="button" id="fi-cancelar">${r.nuevas || r.actualizadas ? "Cancelar" : "Cerrar"}</button>
-            </div>`;
-        caja.style.display = "block";
-        document.getElementById("fi-cancelar").onclick = () => { caja.style.display = "none"; };
-        const aplicar = document.getElementById("fi-aplicar");
-        if (aplicar) aplicar.onclick = async () => {
-            aplicar.disabled = true;
-            try {
-                const f = await fiEnviar(archivo, false);
-                caja.style.display = "none";
-                fiToast(`Importado: ${f.nuevas} nuevas, ${f.actualizadas} actualizadas.`);
-                document.getElementById("f-desde").value = String(f.desde).slice(0, 10);
-                document.getElementById("f-hasta").value = String(f.hasta).slice(0, 10);
-                await Promise.all([fiCargar(), fiCargarArchivos()]);
-            } catch (e) {
-                aplicar.disabled = false;
-                fiToast(e.message, true);
-            }
-        };
-    } catch (e) {
-        if (e.duplicado) {
-            caja.innerHTML = `<b class="fi-error">No se cargó.</b> ${escapeHTML(e.message)}
-                <div class="fi-botones"><button type="button" id="fi-cancelar">Cerrar</button></div>`;
+        const datos = new FormData();
+        datos.append("archivo", archivo);
+        const res = await fetch("/api/rrhh/fichadas/analizar", { method: "POST", headers: fiHeaders(), body: datos });
+        if (!res.ok) throw new Error(await fiError(res, "No se pudo analizar el archivo."));
+        FI.analisis = await res.json();
+        FI.alerta = null;
+        const sinUsuario = FI.analisis.filas.filter(f => !f.en_sistema);
+        const avisos = FI.analisis.avisos;
+        if (sinUsuario.length || avisos.length) {
+            caja.innerHTML =
+                (sinUsuario.length ? `<details><summary>${sinUsuario.length} persona(s) que no están como usuarios del sistema</summary><ul>${sinUsuario.map(f => `<li>${escapeHTML(f.nombre)} (${escapeHTML(f.cuil)})</li>`).join("")}</ul></details>` : "") +
+                (avisos.length ? `<details><summary>Avisos (${avisos.length})</summary><ul>${avisos.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : "");
             caja.style.display = "block";
-            document.getElementById("fi-cancelar").onclick = () => { caja.style.display = "none"; };
         } else {
-            fiToast(e.message || "No se pudo conectar con el servidor.", true);
+            caja.style.display = "none";
         }
+        fiPintar();
+        const total = FI.analisis.resumen.reduce((n, r) => n + r.cantidad, 0);
+        fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas (no se guardó nada).`);
+    } catch (e) {
+        fiToast(e.message || "No se pudo conectar con el servidor.", true);
     }
     boton.disabled = false;
-}
-
-async function fiBorrarArchivo(id, nombre) {
-    if (!confirm(`¿Quitar la importación "${nombre}"? Se borran las fichadas que vienen de ese archivo.`)) return;
-    try {
-        const res = await fetch(`/api/rrhh/fichadas/archivos/${id}`, { method: "DELETE", headers: fiHeaders() });
-        if (!res.ok) throw new Error(await fiError(res, "No se pudo quitar el archivo."));
-        const r = await res.json();
-        fiToast(`Se quitó el archivo (${r.filas_borradas} filas).`);
-        await Promise.all([fiCargar(), fiCargarArchivos()]);
-    } catch (e) {
-        fiToast(e.message, true);
-    }
+    boton.textContent = "Analizar Excel";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("f-buscar").addEventListener("click", fiCargar);
-    document.getElementById("f-q").addEventListener("keydown", e => { if (e.key === "Enter") fiCargar(); });
-    document.getElementById("f-solo-alertas").addEventListener("change", fiCargar);
+    document.getElementById("f-q").addEventListener("input", fiPintar);
+    document.getElementById("f-solo-alertas").addEventListener("change", fiPintar);
     document.getElementById("fi-resumen").addEventListener("click", e => {
         const chip = e.target.closest("[data-alerta]");
         if (!chip) return;
         FI.alerta = FI.alerta === chip.dataset.alerta ? null : chip.dataset.alerta;
-        fiCargar();
+        fiPintar();
     });
     document.getElementById("fi-importar").addEventListener("click", () => document.getElementById("fi-archivo").click());
     document.getElementById("fi-archivo").addEventListener("change", e => {
-        fiImportar(e.target.files[0]);
-        e.target.value = "";
+        fiAnalizar(e.target.files[0]);
+        e.target.value = "";  // así se puede volver a elegir el mismo archivo
     });
-    document.getElementById("fi-archivos").addEventListener("click", e => {
-        const b = e.target.closest("button[data-borrar]");
-        if (b) fiBorrarArchivo(b.dataset.borrar, b.dataset.nombre);
-    });
-    fiCargar();
-    fiCargarArchivos();
 });
