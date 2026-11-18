@@ -2,9 +2,10 @@
 Excel de saldo inicial del banco de horas
 -----------------------------------------
 Una fila por persona. Se busca (en cualquier hoja, en las primeras 20 filas) un encabezado con
-una columna CUIL y una columna de horas. Columnas de horas que se reconocen:
-  - "DEBE" / "HORAS ADEUDADAS" / "ADEUDA" / "FALTANTE": horas que la persona debe (siempre deuda)
-  - "SALDO" / "BANCO" / "HORAS" / "SALDO INICIAL": saldo con signo (negativo = debe, positivo = a favor)
+una columna CUIL y una columna de horas: "Saldo Hs", "Saldo", "Debe", "Horas adeudadas", "Banco", "Horas"...
+El valor es lo que la persona DEBE (formato de la planilla de RRHH: "Saldo Hs" = 0:51 → debe 51 minutos;
+0 = no debe nada). Si viniera con signo negativo, también se toma como deuda.
+Modelo: Nombre | Apellido | CUIL | Saldo Hs (CUIL como número o con guiones).
 Valores admitidos: "3:50", "-3:50", "03:50:00", 3.5 (horas decimales), una hora de Excel (0,1597…)
 o un número entero de minutos si la columna dice "MIN".
 """
@@ -16,8 +17,8 @@ from typing import Optional
 
 from openpyxl import load_workbook
 
-_COLS_DEUDA = ("DEBE", "HORAS ADEUDADAS", "ADEUDA", "ADEUDADAS", "FALTANTE", "FALTANTES", "DEUDA")
-_COLS_SALDO = ("SALDO", "SALDO INICIAL", "BANCO", "BANCO DE HORAS", "HORAS", "SALDO HORAS")
+_COLS_HORAS = ("SALDO HS", "SALDO HORAS", "SALDO H", "SALDO", "SALDO INICIAL", "DEBE", "HORAS ADEUDADAS", "ADEUDA",
+               "ADEUDADAS", "FALTANTE", "FALTANTES", "DEUDA", "BANCO", "BANCO DE HORAS", "HORAS", "HS")
 
 
 def _norm(texto) -> str:
@@ -61,15 +62,14 @@ def leer(contenido: bytes) -> dict:
             col_cuil = next((i for k, i in nombres.items() if k == "CUIL" or k.startswith("CUIL")), None)
             if col_cuil is None:
                 continue
-            col_nombre = next((i for k, i in nombres.items() if "NOMBRE" in k or "APELLIDO" in k), None)
-            modo, col, titulo = None, None, None
+            col_apellido = next((i for k, i in nombres.items() if "APELLIDO" in k and "NOMBRE" not in k), None)
+            col_nombre = next((i for k, i in nombres.items() if "NOMBRE" in k), None)
+            modo, col, titulo = "DEUDA", None, None
             for k, i in nombres.items():
                 base = k.replace(" EN MINUTOS", "").replace(" MINUTOS", "").replace(" MIN", "").strip()
-                if base in _COLS_DEUDA:
-                    modo, col, titulo = "DEUDA", i, k
+                if base in _COLS_HORAS:
+                    col, titulo = i, k
                     break
-                if base in _COLS_SALDO and col is None:
-                    modo, col, titulo = "SALDO", i, k
             if col is None:
                 continue
             en_minutos = "MIN" in titulo
@@ -79,13 +79,13 @@ def leer(contenido: bytes) -> dict:
                 cuil = valores[col_cuil] if col_cuil < len(valores) else None
                 if cuil is None or not str(cuil).strip():
                     continue
-                nombre = str(valores[col_nombre]).strip() if col_nombre is not None and valores[col_nombre] else ""
+                partes = [valores[c] for c in (col_apellido, col_nombre) if c is not None and c < len(valores) and valores[c]]
+                nombre = ", ".join(str(x).strip() for x in partes)
                 minutos = _a_minutos(valores[col] if col < len(valores) else None, en_minutos)
                 if minutos is None:
                     avisos.append(f"Fila {nro} ({nombre or cuil}): sin horas o con un valor que no se entiende; se saltea.")
                     continue
-                if modo == "DEUDA":
-                    minutos = -abs(minutos)
+                minutos = -abs(minutos)  # siempre es lo que debe
                 filas.append({"fila": nro, "cuil": str(cuil).strip(), "nombre": nombre, "minutos": minutos})
             return {"filas": filas, "avisos": avisos, "columna": titulo, "modo": modo, "hoja": ws.title}
     raise ValueError("No encontré una columna CUIL junto con una columna de horas (Debe, Saldo, Horas o Banco).")

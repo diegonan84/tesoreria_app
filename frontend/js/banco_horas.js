@@ -70,8 +70,9 @@ async function bhSaldoInicial(archivo) {
     try {
         const r = await bhEnviarSaldo(archivo, true);
         const caja = bhCaja(`<b>Saldo inicial desde "${escapeHTML(archivo.name)}"</b> (todavía no se guardó nada)<br>
-            Columna de horas: <b>${escapeHTML(r.columna)}</b> (${r.modo === "DEUDA" ? "horas que debe" : "saldo con signo: negativo = debe"}).<br>
-            ${r.personas} personas · ${r.nuevos} nuevas · ${r.cambiados} cambian · ${r.iguales} iguales · total ${escapeHTML(r.total)} h.
+            Columna de horas: <b>${escapeHTML(r.columna)}</b> (lo que debe cada persona).<br>
+            ${r.personas} personas · ${r.nuevos + r.cambiados} con deuda para cargar${r.cambiados ? ` (${r.cambiados} cambian)` : ""} ·
+            ${r.sin_deuda} sin deuda · ${r.iguales} iguales a lo ya cargado · total adeudado ${escapeHTML(r.total.replace("-", ""))} h.
             ${r.sin_usuario.length ? `<details><summary>${r.sin_usuario.length} CUIL que no están como usuarios (se cargan igual)</summary><ul>${r.sin_usuario.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : ""}
             ${r.avisos.length ? `<details><summary>Avisos (${r.avisos.length})</summary><ul>${r.avisos.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : ""}
             <div class="fi-botones">

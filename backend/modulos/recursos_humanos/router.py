@@ -970,7 +970,7 @@ async def importar_saldo_inicial(
 
     usuarios = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User)}
     previos = {m.cuil: m for m in db.query(BancoHorasMovimiento).filter(BancoHorasMovimiento.tipo == "SALDO_INICIAL")}
-    nuevos = cambiados = iguales = 0
+    nuevos = cambiados = iguales = sin_deuda = 0
     sin_usuario, avisos, vistos = [], list(datos["avisos"]), {}
     hoy = date.today()
     for f in datos["filas"]:
@@ -985,6 +985,9 @@ async def importar_saldo_inicial(
         if u is None:
             sin_usuario.append(f"{f['nombre'] or '(sin nombre)'} ({f['cuil']})")
         previo = previos.get(cuil)
+        if previo is None and f["minutos"] == 0:
+            sin_deuda += 1  # no debe nada y no tenía saldo: no hace falta guardar un movimiento en 0
+            continue
         if previo is not None and previo.minutos == f["minutos"]:
             iguales += 1
             continue
@@ -1009,7 +1012,7 @@ async def importar_saldo_inicial(
     total = sum(validos.values())
     resultado = {
         "simulacion": simular, "archivo": archivo.filename, "columna": datos["columna"], "modo": datos["modo"],
-        "personas": len(vistos), "nuevos": nuevos, "cambiados": cambiados, "iguales": iguales,
+        "personas": len(vistos), "nuevos": nuevos, "cambiados": cambiados, "iguales": iguales, "sin_deuda": sin_deuda,
         "total": _hhmm_signo(total), "sin_usuario": sin_usuario, "avisos": avisos,
     }
     if simular:
