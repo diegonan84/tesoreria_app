@@ -10,8 +10,8 @@ Alertas (pedido de RRHH, 17/11/2026):
   - Con 7 h o más no hay alerta de horas (falta compensar / error al fichar), pero si el ingreso
     o la salida difieren más de 1 h del teórico igual sale "Debe realizar cambio de horario" (18/11/2026).
   - Convocado = Si:
-      * Cant Horas (R) < 7  → "Falta compensar H:MM" (7 - Cant Horas)
-      * Ingreso o salida real difieren más de 1 hora del teórico → "Debe realizar cambio de horario"
+      * Cant Horas (R) < 7  → "Debe N minutos" / "Debe H h M min" (7 - Cant Horas), y nada más
+      * Con 7 h o más: ingreso o salida real difieren más de 1 hora del teórico → "Debe realizar cambio de horario"
   - Convocado = No:
       * Cant Horas (R) < 7  → "Error al fichar"
       * Falta la hora de ingreso o de salida real → "Falta algún registro de fichada"
@@ -32,7 +32,7 @@ ALERTA_CAMBIO_HORARIO = "CAMBIO_HORARIO"
 ALERTA_ERROR_FICHAR = "ERROR_FICHAR"
 ALERTA_FALTA_REGISTRO = "FALTA_REGISTRO"
 NOMBRES_ALERTA = {
-    ALERTA_COMPENSAR: "Falta compensar horas",
+    ALERTA_COMPENSAR: "Hizo menos de 7 horas",
     ALERTA_CAMBIO_HORARIO: "Debe realizar cambio de horario",
     ALERTA_ERROR_FICHAR: "Error al fichar",
     ALERTA_FALTA_REGISTRO: "Falta algún registro de fichada",
@@ -117,6 +117,16 @@ def hhmm(minutos: int) -> str:
     return f"{minutos // 60}:{minutos % 60:02d}"
 
 
+def duracion(minutos: int) -> str:
+    """45 → "45 minutos", 60 → "1 hora", 133 → "2 h 13 min"."""
+    if minutos < 60:
+        return f"{minutos} minuto{'s' if minutos != 1 else ''}"
+    h, m = divmod(minutos, 60)
+    if m == 0:
+        return f"{h} hora{'s' if h != 1 else ''}"
+    return f"{h} h {m} min"
+
+
 def calcular_alertas(fila: dict) -> List[dict]:
     """[{codigo, texto}] según las reglas de RRHH (ver docstring del módulo)."""
     if fila.get("incidencia"):
@@ -124,8 +134,10 @@ def calcular_alertas(fila: dict) -> List[dict]:
     alertas = []
     horas = fila.get("cant_horas_min") or 0
     if fila.get("convocado"):
+        # Menos de 7 h: solo se avisa lo que debe (aunque además difiera el horario)
         if horas < JORNADA_MIN:
-            alertas.append({"codigo": ALERTA_COMPENSAR, "texto": f"Falta compensar {hhmm(JORNADA_MIN - horas)} h"})
+            alertas.append({"codigo": ALERTA_COMPENSAR, "texto": f"Debe {duracion(JORNADA_MIN - horas)}"})
+            return alertas
         difs = []
         for t, r in (("t_ingreso", "r_ingreso"), ("t_salida", "r_salida")):
             a, b = _en_minutos(fila.get(t)), _en_minutos(fila.get(r))
@@ -159,10 +171,10 @@ def detalle_alerta(codigo: str, fila: dict) -> str:
     teorico = f"Teórico {h(fila.get('t_ingreso'))} a {h(fila.get('t_salida'))}"
     real = f"real {h(fila.get('r_ingreso'))} a {h(fila.get('r_salida'))}"
     if codigo == ALERTA_COMPENSAR:
-        falta = hhmm(JORNADA_MIN - (horas or 0))
+        falta = duracion(JORNADA_MIN - (horas or 0))
         if not fila.get("r_ingreso") and not fila.get("r_salida"):
-            return f"No registró fichadas; le faltan {falta} h de la jornada de 7:00 h."
-        return f"Trabajó {trabajadas} h de 7:00 h; le faltan {falta} h ({teorico}, {real})."
+            return f"No registró fichadas; debe {falta} de la jornada de 7 horas."
+        return f"Hizo menos de 7 horas: trabajó {trabajadas} h y debe {falta} ({teorico}, {real})."
     if codigo == ALERTA_CAMBIO_HORARIO:
         partes = []
         for que, r, t in (("ingreso", "r_ingreso", "t_ingreso"), ("salida", "r_salida", "t_salida")):
