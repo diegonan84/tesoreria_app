@@ -7,7 +7,8 @@ Se busca la hoja cuyo encabezado tenga "Hora Ingreso (T)" y "Cant Horas (R)" (la
 
 Alertas (pedido de RRHH, 17/11/2026):
   - Si tiene una incidencia cargada → sin alertas.
-  - Si trabajó 7 h o más → sin alertas (18/11/2026).
+  - Con 7 h o más no hay alerta de horas (falta compensar / error al fichar), pero si el ingreso
+    o la salida difieren más de 1 h del teórico igual sale "Debe realizar cambio de horario" (18/11/2026).
   - Convocado = Si:
       * Cant Horas (R) < 7  → "Falta compensar H:MM" (7 - Cant Horas)
       * Ingreso o salida real difieren más de 1 hora del teórico → "Debe realizar cambio de horario"
@@ -122,9 +123,6 @@ def calcular_alertas(fila: dict) -> List[dict]:
         return []
     alertas = []
     horas = fila.get("cant_horas_min") or 0
-    # Si cumplió la jornada (7 h o más), no hay alerta aunque haya entrado o salido en otro horario
-    if horas >= JORNADA_MIN:
-        return []
     if fila.get("convocado"):
         if horas < JORNADA_MIN:
             alertas.append({"codigo": ALERTA_COMPENSAR, "texto": f"Falta compensar {hhmm(JORNADA_MIN - horas)} h"})
