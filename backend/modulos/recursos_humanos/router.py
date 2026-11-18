@@ -675,19 +675,26 @@ async def analizar_fichadas(archivo: UploadFile = File(...), db: Session = Depen
     except Exception:
         raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Tiene que ser un Excel .xlsx.")
 
-    sectores = {excel_home_office.solo_digitos(u.cuil): (u.sector.nombre if u.sector else None)
-                for u in db.query(User).options(joinedload(User.sector))}
+    usuarios = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User).options(joinedload(User.sector))}
+    sectores = {c: (u.sector.nombre if u.sector else None) for c, u in usuarios.items()}
     h = lambda t: t.strftime("%H:%M") if t else None
-    filas, resumen = [], {}
+    filas, resumen, sin_control = [], {}, 0
     for f in datos["filas"]:
         cuil = excel_home_office.solo_digitos(f["cuil"])
-        alertas = [{**a, "motivo": excel_fichadas.NOMBRES_ALERTA[a["codigo"]],
-                    "detalle": excel_fichadas.detalle_alerta(a["codigo"], f)} for a in f["alertas"]]
+        # Autoridades Superiores y Externos no se controlan (por el Cód Reg del Excel o del usuario)
+        u = usuarios.get(cuil)
+        no_controla = excel_fichadas.cod_reg_sin_control(f["cod_reg"], u.cod_reg if u else None)
+        if no_controla:
+            sin_control += 1
+        alertas = [] if no_controla else [
+            {**a, "motivo": excel_fichadas.NOMBRES_ALERTA[a["codigo"]],
+             "detalle": excel_fichadas.detalle_alerta(a["codigo"], f)} for a in f["alertas"]]
         for a in alertas:
             resumen[a["codigo"]] = resumen.get(a["codigo"], 0) + 1
         filas.append({
             "cuil": f["cuil"], "nombre": f["nombre"], "sector": sectores.get(cuil) or f["reparticion"],
             "en_sistema": cuil in sectores, "fecha": f["fecha"], "convocado": f["convocado"],
+            "cod_reg": (u.cod_reg if u and u.cod_reg else f["cod_reg"]), "no_controla": no_controla,
             "teorico_ingreso": h(f["t_ingreso"]), "teorico_salida": h(f["t_salida"]),
             "real_ingreso": h(f["r_ingreso"]), "real_salida": h(f["r_salida"]),
             "horas": excel_fichadas.hhmm(f["cant_horas_min"]) if f["cant_horas_min"] is not None else None,
@@ -697,7 +704,7 @@ async def analizar_fichadas(archivo: UploadFile = File(...), db: Session = Depen
     filas.sort(key=lambda x: x["nombre"].upper())
     return {
         "archivo": archivo.filename, "hoja": datos["hoja"], "desde": datos["desde"], "hasta": datos["hasta"],
-        "filas": filas, "avisos": datos["avisos"],
+        "filas": filas, "avisos": datos["avisos"], "sin_control": sin_control,
         "resumen": [{"codigo": k, "nombre": n, "cantidad": resumen.get(k, 0)} for k, n in excel_fichadas.NOMBRES_ALERTA.items()],
     }
 

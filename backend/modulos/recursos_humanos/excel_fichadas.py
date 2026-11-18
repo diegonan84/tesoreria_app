@@ -37,6 +37,18 @@ NOMBRES_ALERTA = {
 }
 
 # Encabezado normalizado → clave interna
+# Cód Reg que no se controlan (pedido de RRHH, 18/11/2026). Se compara sin tildes ni mayúsculas.
+COD_REG_SIN_CONTROL = {"AUTORIDADES SUPERIORES", "EXTERNO"}
+
+
+def cod_reg_sin_control(*valores) -> Optional[str]:
+    """Devuelve el Cód Reg que excluye del control (del Excel o del usuario), o None."""
+    for v in valores:
+        if v and _norm(v) in COD_REG_SIN_CONTROL:
+            return v
+    return None
+
+
 _COLUMNAS = {
     "CUIL": "cuil", "NOMBRE Y APELLIDO": "nombre", "REPARTICION": "reparticion", "COD REG": "cod_reg",
     "FECHA": "fecha", "FERIADO": "feriado", "TIPO HORARIO": "tipo_horario", "CONVOCADO": "convocado",

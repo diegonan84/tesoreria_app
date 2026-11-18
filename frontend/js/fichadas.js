@@ -90,7 +90,7 @@ function fiPintar() {
                 <span class="fi-sub">${escapeHTML(f.estado || "")}</span></td>
             <td>${f.alertas.length
                 ? f.alertas.map(a => `<span class="fi-alerta ${a.codigo}">${escapeHTML(a.texto)}</span>`).join("")
-                : `<span class="fi-ok">${f.incidencia ? "Con incidencia" : "Sin alertas"}</span>`}</td>
+                : `<span class="fi-ok">${f.no_controla ? `No se controla (${escapeHTML(f.no_controla)})` : f.incidencia ? "Con incidencia" : "Sin alertas"}</span>`}</td>
         </tr>`).join("");
 }
 
@@ -136,7 +136,8 @@ async function fiAnalizar(archivo) {
         }
         fiPintar();
         const total = FI.analisis.resumen.reduce((n, r) => n + r.cantidad, 0);
-        fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas (no se guardó nada).`);
+        const sinControl = FI.analisis.sin_control ? `, ${FI.analisis.sin_control} sin control por Cód Reg` : "";
+        fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas${sinControl} (no se guardó nada).`);
     } catch (e) {
         fiToast(e.message || "No se pudo conectar con el servidor.", true);
     }
