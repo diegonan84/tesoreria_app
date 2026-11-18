@@ -10,7 +10,7 @@ Alertas (pedido de RRHH, 17/11/2026):
   - Con 7 h o más no hay alerta de horas (falta compensar / error al fichar), pero si el ingreso
     o la salida difieren más de 1 h del teórico igual sale "Debe realizar cambio de horario" (18/11/2026).
   - Convocado = Si:
-      * Cant Horas (R) < 7  → "Debe N minutos" / "Debe H h M min" (7 - Cant Horas), y nada más
+      * Cant Horas (R) < 7  → "Debe N minutos" / "Debe 1 hora y 30 minutos" (7 - Cant Horas), y nada más
       * Con 7 h o más: ingreso o salida real difieren más de 1 hora del teórico → "Debe realizar cambio de horario"
   - Convocado = No:
       * Cant Horas (R) < 7  → "Error al fichar"
@@ -118,13 +118,13 @@ def hhmm(minutos: int) -> str:
 
 
 def duracion(minutos: int) -> str:
-    """45 → "45 minutos", 60 → "1 hora", 133 → "2 h 13 min"."""
-    if minutos < 60:
-        return f"{minutos} minuto{'s' if minutos != 1 else ''}"
+    """45 → "45 minutos", 60 → "1 hora", 90 → "1 hora y 30 minutos", 133 → "2 horas y 13 minutos"."""
     h, m = divmod(minutos, 60)
-    if m == 0:
-        return f"{h} hora{'s' if h != 1 else ''}"
-    return f"{h} h {m} min"
+    texto_m = f"{m} minuto{'s' if m != 1 else ''}"
+    if h == 0:
+        return texto_m
+    texto_h = f"{h} hora{'s' if h != 1 else ''}"
+    return texto_h if m == 0 else f"{texto_h} y {texto_m}"
 
 
 def calcular_alertas(fila: dict) -> List[dict]:
