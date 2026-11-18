@@ -124,12 +124,8 @@ async function fiAnalizar(archivo) {
         if (!res.ok) throw new Error(await fiError(res, "No se pudo analizar el archivo."));
         FI.analisis = await res.json();
         FI.alerta = null;
-        // El mismo archivo queda listo para "Sumar al banco de horas"
-        if (typeof BH !== "undefined") {
-            BH.archivoFichadas = archivo;
-            const b = document.getElementById("bh-sumar");
-            if (b) { b.disabled = false; b.title = `Sumar lo que deben según "${archivo.name}"`; }
-        }
+        // Lo que deben ya se sumó al banco de horas en el servidor: refrescamos la lista
+        if (typeof bhCargar === "function") bhCargar();
         const sinUsuario = FI.analisis.filas.filter(f => !f.en_sistema);
         const avisos = FI.analisis.avisos;
         if (sinUsuario.length || avisos.length) {
@@ -143,7 +139,10 @@ async function fiAnalizar(archivo) {
         fiPintar();
         const total = FI.analisis.resumen.reduce((n, r) => n + r.cantidad, 0);
         const sinControl = FI.analisis.sin_control ? `, ${FI.analisis.sin_control} sin control por Cód Reg` : "";
-        fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas${sinControl} (no se guardó nada).`);
+        const b = FI.analisis.banco || { sumados: 0, ya_sumados: 0 };
+        const banco = b.sumados ? ` Banco de horas: se sumaron ${b.sumados} deuda(s) (${b.total}).`
+            : b.ya_sumados ? " Banco de horas: ese día ya estaba sumado." : "";
+        fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas${sinControl}.${banco}`);
     } catch (e) {
         fiToast(e.message || "No se pudo conectar con el servidor.", true);
     }

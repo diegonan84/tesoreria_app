@@ -661,10 +661,12 @@ def _fecha_hora_local(dt: Optional[datetime]) -> Optional[str]:
     return (dt - timedelta(hours=3)).strftime("%d/%m/%Y %H:%M") if dt else None
 
 
-@router.post("/fichadas/analizar", dependencies=[Depends(_fichadas)])
-async def analizar_fichadas(archivo: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Solo consulta: lee el Excel de asistencia y devuelve las alertas. No guarda nada,
-    así que el mismo archivo se puede analizar todas las veces que haga falta."""
+@router.post("/fichadas/analizar")
+async def analizar_fichadas(request: Request, archivo: UploadFile = File(...),
+                            db: Session = Depends(get_db), actual=Depends(_fichadas)):
+    """Lee el Excel de asistencia y devuelve las alertas (las fichadas no se guardan, así que el mismo
+    archivo se puede analizar las veces que haga falta). Lo único que se guarda es lo que debe cada
+    persona en el banco de horas, una sola vez por persona y fecha: re-analizar no duplica."""
     contenido = await archivo.read()
     if len(contenido) > MAX_EXCEL_BYTES:
         raise HTTPException(status_code=400, detail="El archivo supera los 5 MB.")
@@ -702,9 +704,14 @@ async def analizar_fichadas(archivo: UploadFile = File(...), db: Session = Depen
             "alertas": alertas,
         })
     filas.sort(key=lambda x: x["nombre"].upper())
+    banco = sumar_deudas_al_banco(db, datos, archivo.filename, actual, simular=False)
+    if banco["sumados"]:
+        rango = _fecha_corta(datos["desde"]) + ("" if datos["desde"] == datos["hasta"] else f" al {_fecha_corta(datos['hasta'])}")
+        _auditar(db, actual, request, f"Banco de horas: se sumaron {banco['sumados']} deudas de fichadas del {rango} ({archivo.filename})")
     return {
         "archivo": archivo.filename, "hoja": datos["hoja"], "desde": datos["desde"], "hasta": datos["hasta"],
         "filas": filas, "avisos": datos["avisos"], "sin_control": sin_control,
+        "banco": banco,
         "resumen": [{"codigo": k, "nombre": n, "cantidad": resumen.get(k, 0)} for k, n in excel_fichadas.NOMBRES_ALERTA.items()],
     }
 
@@ -1042,12 +1049,21 @@ async def sumar_fichadas_al_banco(
     except Exception:
         raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Tiene que ser un Excel .xlsx.")
 
+    resultado = sumar_deudas_al_banco(db, datos, archivo.filename, actual, simular)
+    if not simular and resultado["sumados"]:
+        rango = _fecha_corta(datos["desde"]) + ("" if datos["desde"] == datos["hasta"] else f" al {_fecha_corta(datos['hasta'])}")
+        _auditar(db, actual, request, f"Banco de horas: se sumaron {resultado['sumados']} deudas de fichadas del {rango} ({archivo.filename})")
+    return resultado
+
+
+def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str], actual: dict, simular: bool) -> dict:
+    """Suma al banco lo que debe cada persona según el Excel de asistencia (convocados con menos de 7 h).
+    Cada persona y fecha se suma UNA sola vez: volver a procesar el mismo día no duplica."""
     usuarios = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User)}
     ya = {(m.cuil, m.fecha) for m in db.query(BancoHorasMovimiento.cuil, BancoHorasMovimiento.fecha).filter(
         BancoHorasMovimiento.tipo == "FICHADA",
         BancoHorasMovimiento.fecha >= datos["desde"], BancoHorasMovimiento.fecha <= datos["hasta"])}
-    sumados, repetidos, detalle = 0, 0, []
-    total = 0
+    sumados, repetidos, detalle, total = 0, 0, [], 0
     for f in datos["filas"]:
         cuil = excel_home_office.solo_digitos(f["cuil"])
         u = usuarios.get(cuil)
@@ -1059,29 +1075,26 @@ async def sumar_fichadas_al_banco(
         if (cuil, f["fecha"]) in ya:
             repetidos += 1
             continue
+        ya.add((cuil, f["fecha"]))
         sumados += 1
         total += debe
         nombre = f"{u.apellido}, {u.nombre}" if u else f["nombre"]
-        detalle.append({"nombre": nombre, "fecha": f["fecha"], "debe": excel_fichadas.duracion(debe)})
+        detalle.append({"cuil": cuil, "nombre": nombre, "fecha": f["fecha"], "debe": excel_fichadas.duracion(debe)})
         if not simular:
             db.add(BancoHorasMovimiento(
                 cuil=cuil, usuario_id=u.id if u else None, nombre=nombre[:150], tipo="FICHADA", fecha=f["fecha"],
                 minutos=-debe, detalle=f"Hizo {excel_fichadas.hhmm(f['cant_horas_min'] or 0)} h de 7:00 h",
-                archivo=(archivo.filename or "")[:200], creado_por_id=actual.get("id"),
+                archivo=(archivo_nombre or "")[:200], creado_por_id=actual.get("id"),
             ))
-    resultado = {
-        "simulacion": simular, "archivo": archivo.filename, "desde": datos["desde"], "hasta": datos["hasta"],
+    if simular:
+        db.rollback()
+    elif sumados:
+        db.commit()
+    return {
+        "simulacion": simular, "archivo": archivo_nombre, "desde": datos["desde"], "hasta": datos["hasta"],
         "sumados": sumados, "ya_sumados": repetidos, "total": excel_fichadas.duracion(total) if total else "0 minutos",
         "detalle": detalle,
     }
-    if simular:
-        db.rollback()
-        return resultado
-    if sumados:
-        db.commit()
-        rango = _fecha_corta(datos["desde"]) + ("" if datos["desde"] == datos["hasta"] else f" al {_fecha_corta(datos['hasta'])}")
-        _auditar(db, actual, request, f"Banco de horas: se sumaron {sumados} deudas de fichadas del {rango} ({archivo.filename})")
-    return resultado
 
 
 @router.post("/banco-horas/ajuste")

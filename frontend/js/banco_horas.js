@@ -193,7 +193,6 @@ async function bhAjustar(cuil) {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("bh-importar").addEventListener("click", () => document.getElementById("bh-archivo").click());
     document.getElementById("bh-archivo").addEventListener("change", e => { bhSaldoInicial(e.target.files[0]); e.target.value = ""; });
-    document.getElementById("bh-sumar").addEventListener("click", bhSumarFichadas);
     document.getElementById("bh-q").addEventListener("input", bhPintar);
     document.getElementById("bh-cuerpo").addEventListener("click", e => {
         const b = e.target.closest("button[data-cuil]");

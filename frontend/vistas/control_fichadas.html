@@ -52,7 +52,8 @@
         <h2>Control de Fichadas</h2>
         <p>Elegí el Excel de <b>Asistencia biométrico</b> con <b>Analizar Excel</b> y revisá las alertas de cada persona.
            El análisis es <b>solo de consulta</b>: no se guarda nada, así que podés analizar el mismo archivo todas las veces que quieras.
-           Lo que cada persona debe pasa al <b>banco de horas</b> solo cuando apretás <b>Sumar al banco de horas</b> (cada día se suma una sola vez).
+           Al analizar, lo que debe cada persona se suma solo al <b>banco de horas</b>; cada persona y día se suma una sola vez,
+           así que volver a analizar el mismo archivo no duplica.
            Si el día tiene una incidencia cargada (licencia, etc.), no se marca alerta. Los Cód Reg <b>Autoridades Superiores</b> y <b>Externo</b> no se controlan.</p>
 
         <div class="card fi-card">
@@ -63,7 +64,6 @@
                 <label><input type="checkbox" id="f-solo-alertas" checked> Solo con alertas</label>
                 <div class="fi-acciones">
                     <button type="button" id="fi-importar">Analizar Excel</button>
-                    <button type="button" id="bh-sumar" disabled title="Primero analizá un Excel de fichadas">Sumar al banco de horas</button>
                     <input type="file" id="fi-archivo" accept=".xlsx" style="display:none;">
                 </div>
             </div>
