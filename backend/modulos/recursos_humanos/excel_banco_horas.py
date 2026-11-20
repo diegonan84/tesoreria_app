@@ -15,7 +15,8 @@ import unicodedata
 from datetime import datetime, time, timedelta
 from typing import Optional
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 _COLS_HORAS = ("SALDO HS", "SALDO HORAS", "SALDO H", "SALDO", "SALDO INICIAL", "DEBE", "HORAS ADEUDADAS", "ADEUDA",
                "ADEUDADAS", "FALTANTE", "FALTANTES", "DEUDA", "BANCO", "BANCO DE HORAS", "HORAS", "HS")
@@ -89,3 +90,73 @@ def leer(contenido: bytes) -> dict:
                 filas.append({"fila": nro, "cuil": str(cuil).strip(), "nombre": nombre, "minutos": minutos})
             return {"filas": filas, "avisos": avisos, "columna": titulo, "modo": modo, "hoja": ws.title}
     raise ValueError("No encontré una columna CUIL junto con una columna de horas (Debe, Saldo, Horas o Banco).")
+
+
+
+# ---------------------------------------------------------------------------
+# Exportar la planilla de estado de horas
+# ---------------------------------------------------------------------------
+def _hhmm(minutos: int) -> str:
+    signo = "-" if minutos < 0 else ""
+    m = abs(minutos)
+    return f"{signo}{m // 60}:{m % 60:02d}"
+
+
+def exportar(personas: list, fechas: list) -> bytes:
+    """personas: [{apellido, nombre, cuil, sector, cod_reg, inicial, fichadas, ajustes, total, texto, por_dia: {fecha: min}}]
+    (minutos con signo: negativo = debe). fechas: días con deudas sumadas, en orden."""
+    wb = Workbook()
+    borde = Border(*(Side(style="thin", color="BFBFBF"),) * 4)
+    titulo = PatternFill("solid", start_color="1A3644", end_color="1A3644")
+    rojo, verde = Font(color="B3261E", bold=True), Font(color="2E7D32", bold=True)
+
+    def encabezado(ws, columnas, anchos):
+        ws.append(columnas)
+        for c in ws[ws.max_row]:
+            c.font, c.fill, c.border = Font(bold=True, color="FFFFFF"), titulo, borde
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for i, ancho in enumerate(anchos, start=1):
+            ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = ancho
+        ws.freeze_panes = "D2"
+
+    # Hoja 1: saldo de cada persona
+    ws = wb.active
+    ws.title = "Estado de horas"
+    encabezado(ws, ["Apellido", "Nombre", "CUIL", "Sector", "Cód Reg", "Saldo inicial",
+                    "Deuda por fichadas", "Ajustes", "Saldo total", "Estado"],
+               [20, 22, 15, 34, 26, 12, 12, 10, 12, 30])
+    for p in personas:
+        ws.append([p["apellido"], p["nombre"], p["cuil"], p["sector"] or "", p["cod_reg"] or "",
+                   _hhmm(p["inicial"]), _hhmm(p["fichadas"]), _hhmm(p["ajustes"]), _hhmm(p["total"]), p["texto"]])
+        fila = ws.max_row
+        for c in ws[fila]:
+            c.border = borde
+        for col in range(6, 10):
+            ws.cell(row=fila, column=col).alignment = Alignment(horizontal="center")
+        ws.cell(row=fila, column=9).font = rojo if p["total"] < 0 else verde if p["total"] > 0 else Font()
+    total = sum(p["total"] for p in personas)
+    ws.append(["", "", "", "", "Total", _hhmm(sum(p["inicial"] for p in personas)),
+               _hhmm(sum(p["fichadas"] for p in personas)), _hhmm(sum(p["ajustes"] for p in personas)), _hhmm(total), ""])
+    for c in ws[ws.max_row]:
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="center")
+
+    # Hoja 2: lo que debió cada persona cada día (lo sumado desde los Excel de fichadas)
+    ws2 = wb.create_sheet("Deuda por día")
+    encabezado(ws2, ["Apellido", "Nombre", "CUIL"] + [f.strftime("%d/%m/%Y") for f in fechas] + ["Total fichadas"],
+               [20, 22, 15] + [12] * len(fechas) + [14])
+    for p in personas:
+        if not p["por_dia"]:
+            continue
+        ws2.append([p["apellido"], p["nombre"], p["cuil"]] + [_hhmm(p["por_dia"][f]) if f in p["por_dia"] else "" for f in fechas]
+                   + [_hhmm(p["fichadas"])])
+        for c in ws2[ws2.max_row]:
+            c.border = borde
+            if c.column > 3:
+                c.alignment = Alignment(horizontal="center")
+    if ws2.max_row == 1:
+        ws2.append(["Todavía no se sumaron deudas de fichadas."])
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

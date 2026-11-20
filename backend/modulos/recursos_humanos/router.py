@@ -939,6 +939,43 @@ def listar_banco_horas(db: Session = Depends(get_db)):
     return salida
 
 
+@router.get("/banco-horas/exportar", dependencies=[Depends(_fichadas)])
+def exportar_banco_horas(db: Session = Depends(get_db)):
+    """Planilla de estado de horas: saldo de cada persona y lo que debió cada día."""
+    usuarios = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User).options(joinedload(User.sector))}
+    personas, fechas = {}, set()
+    for m in db.query(BancoHorasMovimiento).order_by(BancoHorasMovimiento.fecha):
+        p = personas.get(m.cuil)
+        if p is None:
+            u = usuarios.get(m.cuil)
+            apellido, _, nombre = (m.nombre or "").partition(",")
+            p = personas[m.cuil] = {
+                "apellido": u.apellido if u else apellido.strip(), "nombre": u.nombre if u else nombre.strip(),
+                "cuil": f"{m.cuil[:2]}-{m.cuil[2:10]}-{m.cuil[10:]}" if len(m.cuil) == 11 else m.cuil,
+                "sector": u.sector.nombre if u and u.sector else None, "cod_reg": u.cod_reg if u else None,
+                "inicial": 0, "fichadas": 0, "ajustes": 0, "por_dia": {},
+            }
+        if m.tipo == "SALDO_INICIAL":
+            p["inicial"] += m.minutos
+        elif m.tipo == "FICHADA":
+            p["fichadas"] += m.minutos
+            p["por_dia"][m.fecha] = p["por_dia"].get(m.fecha, 0) + m.minutos
+            fechas.add(m.fecha)
+        else:
+            p["ajustes"] += m.minutos
+    lista = []
+    for p in personas.values():
+        p["total"] = p["inicial"] + p["fichadas"] + p["ajustes"]
+        p["texto"] = _saldo_texto(p["total"])
+        lista.append(p)
+    lista.sort(key=lambda p: (p["total"], (p["apellido"] or "").upper(), (p["nombre"] or "").upper()))
+    return Response(
+        excel_banco_horas.exportar(lista, sorted(fechas)),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=Banco_de_horas_{date.today():%Y-%m-%d}.xlsx"},
+    )
+
+
 @router.get("/banco-horas/{cuil}", dependencies=[Depends(_fichadas)])
 def detalle_banco_horas(cuil: str, db: Session = Depends(get_db)):
     cuil = excel_home_office.solo_digitos(cuil)

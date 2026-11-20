@@ -190,7 +190,24 @@ async function bhAjustar(cuil) {
     }
 }
 
+async function bhExportar(boton) {
+    boton.disabled = true;
+    try {
+        const res = await fetch("/api/rrhh/banco-horas/exportar", { headers: bhHeaders() });
+        if (!res.ok) throw new Error(await bhError(res, "No se pudo exportar el banco de horas."));
+        const nombre = (res.headers.get("Content-Disposition") || "").match(/filename=([^;]+)/);
+        const url = URL.createObjectURL(await res.blob());
+        const a = Object.assign(document.createElement("a"), { href: url, download: nombre ? nombre[1] : "Banco_de_horas.xlsx" });
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        fiToast(e.message, true);
+    }
+    boton.disabled = false;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("bh-exportar").addEventListener("click", e => bhExportar(e.currentTarget));
     document.getElementById("bh-importar").addEventListener("click", () => document.getElementById("bh-archivo").click());
     document.getElementById("bh-archivo").addEventListener("change", e => { bhSaldoInicial(e.target.files[0]); e.target.value = ""; });
     document.getElementById("bh-q").addEventListener("input", bhPintar);
