@@ -43,7 +43,10 @@ async function bhCargar() {
 
 function bhPintar() {
     const q = document.getElementById("bh-q").value.trim().toLowerCase();
-    const lista = BH.lista.filter(x => !q || `${x.nombre} ${x.cuil}`.toLowerCase().includes(q));
+    // Sin búsqueda: solo quienes tienen movimientos. Buscando: cualquier usuario (para cargarle horas a mano).
+    const lista = q
+        ? BH.lista.filter(x => `${x.nombre} ${x.cuil}`.toLowerCase().includes(q))
+        : BH.lista.filter(x => x.movimientos > 0);
     const deben = BH.lista.filter(x => x.minutos < 0).length;
     document.getElementById("bh-cuenta").textContent = BH.lista.length ? `(${deben} con horas adeudadas)` : "";
     document.getElementById("bh-cuerpo").innerHTML = lista.length ? lista.map(x => `
@@ -53,7 +56,7 @@ function bhPintar() {
             <td class="c">${x.movimientos}</td>
             <td class="c"><button type="button" data-cuil="${escapeHTML(x.cuil)}">Ver / ajustar</button></td>
         </tr>`).join("")
-        : `<tr><td colspan="4" class="fi-aviso">${BH.lista.length ? "No hay coincidencias." : "Todavía no hay saldos. Importá el saldo inicial o sumá un Excel de fichadas."}</td></tr>`;
+        : `<tr><td colspan="4" class="fi-aviso">${q ? "No hay coincidencias." : "Todavía no hay saldos. Importá el saldo inicial, analizá un Excel de fichadas o buscá a una persona para cargarle horas."}</td></tr>`;
 }
 
 // ---- Saldo inicial (Excel con CUIL y horas) ----

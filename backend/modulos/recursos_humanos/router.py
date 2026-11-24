@@ -920,7 +920,7 @@ def _hhmm_signo(minutos: int) -> str:
 
 @router.get("/banco-horas", dependencies=[Depends(_fichadas)])
 def listar_banco_horas(db: Session = Depends(get_db)):
-    """Saldo de cada persona (solo quienes tienen movimientos), de más deuda a menos."""
+    """Saldo de cada persona (con movimientos y usuarios activos sin movimientos), de más deuda a menos."""
     filas = (db.query(BancoHorasMovimiento.cuil, func.sum(BancoHorasMovimiento.minutos),
                       func.count(BancoHorasMovimiento.id), func.max(BancoHorasMovimiento.fecha))
              .group_by(BancoHorasMovimiento.cuil).all())
@@ -935,6 +935,16 @@ def listar_banco_horas(db: Session = Depends(get_db)):
             "sector": u.sector.nombre if u and u.sector else None, "en_sistema": u is not None,
             "minutos": int(total or 0), "saldo": _hhmm_signo(int(total or 0)), "saldo_texto": _saldo_texto(int(total or 0)),
             "movimientos": cantidad, "ultima_fecha": ultima,
+        })
+    # También los usuarios activos sin movimientos (para poder cargarles horas a mano)
+    con_movimientos = {x["cuil"] for x in salida}
+    for cuil, u in usuarios.items():
+        if cuil in con_movimientos or u.estado != "ACTIVO" or len(cuil) != 11:
+            continue
+        salida.append({
+            "cuil": cuil, "nombre": f"{u.apellido}, {u.nombre}", "sector": u.sector.nombre if u.sector else None,
+            "en_sistema": True, "minutos": 0, "saldo": "0:00", "saldo_texto": "Sin saldo",
+            "movimientos": 0, "ultima_fecha": None,
         })
     salida.sort(key=lambda x: (x["minutos"], x["nombre"].upper()))
     return salida
