@@ -11,7 +11,10 @@ Alertas (pedido de RRHH, 17/11/2026):
     o la salida difieren más de 1 h del teórico igual sale "Debe realizar cambio de horario" (18/11/2026).
   - Convocado = Si:
       * Cant Horas (R) < 7  → "Debe N minutos" / "Debe 1 hora y 30 minutos" (7 - Cant Horas), y nada más
-      * Con 7 h o más: ingreso o salida real difieren más de 1 hora del teórico → "Debe realizar cambio de horario"
+      * Con 7 h o más: ingreso o salida real difieren más de 1 hora del teórico →
+          - si entró antes y/o salió después (no entró tarde ni salió antes, tolerancia 15 min)
+            → "Hizo N de más" (no suma al banco, pero compensa deuda)
+          - si no → "Debe realizar cambio de horario"
   - Convocado = No:
       * Cant Horas (R) < 7  → "Error al fichar"
       * Falta la hora de ingreso o de salida real → "Falta algún registro de fichada"
@@ -31,7 +34,12 @@ ALERTA_COMPENSAR = "FALTA_COMPENSAR"
 ALERTA_CAMBIO_HORARIO = "CAMBIO_HORARIO"
 ALERTA_ERROR_FICHAR = "ERROR_FICHAR"
 ALERTA_FALTA_REGISTRO = "FALTA_REGISTRO"
+ALERTA_HORAS_DE_MAS = "HORAS_DE_MAS"
+# Para decidir si la diferencia con el teórico es por quedarse de más (y no un cambio de horario):
+# entrar hasta 15 min tarde o salir hasta 15 min antes se considera "en horario".
+TOLERANCIA_PUNTUAL_MIN = 15
 NOMBRES_ALERTA = {
+    ALERTA_HORAS_DE_MAS: "Hizo horas de más",
     ALERTA_COMPENSAR: "Hizo menos de 7 horas",
     ALERTA_CAMBIO_HORARIO: "Debe realizar cambio de horario",
     ALERTA_ERROR_FICHAR: "Error al fichar",
@@ -127,6 +135,26 @@ def duracion(minutos: int) -> str:
     return texto_h if m == 0 else f"{texto_h} y {texto_m}"
 
 
+def _desvios(fila: dict):
+    """(minutos que entró tarde, minutos que salió tarde) respecto del teórico; negativos = antes."""
+    def d(r, t):
+        a, b = _en_minutos(fila.get(r)), _en_minutos(fila.get(t))
+        return None if a is None or b is None else a - b
+    return d("r_ingreso", "t_ingreso"), d("r_salida", "t_salida")
+
+
+def _se_quedo_de_mas(d_in: Optional[int], d_out: Optional[int]) -> bool:
+    """True si no entró tarde ni salió antes (más allá de la tolerancia): la jornada se estiró, no se corrió."""
+    return (d_in is None or d_in <= TOLERANCIA_PUNTUAL_MIN) and (d_out is None or d_out >= -TOLERANCIA_PUNTUAL_MIN)
+
+
+def minutos_de_mas(fila: dict) -> int:
+    """Minutos trabajados por encima de las 7 h (convocado, sin incidencia); sirven para compensar deuda."""
+    if fila.get("incidencia") or not fila.get("convocado"):
+        return 0
+    return max(0, (fila.get("cant_horas_min") or 0) - JORNADA_MIN)
+
+
 def calcular_alertas(fila: dict) -> List[dict]:
     """[{codigo, texto}] según las reglas de RRHH (ver docstring del módulo)."""
     if fila.get("incidencia"):
@@ -138,13 +166,14 @@ def calcular_alertas(fila: dict) -> List[dict]:
         if horas < JORNADA_MIN:
             alertas.append({"codigo": ALERTA_COMPENSAR, "texto": f"Debe {duracion(JORNADA_MIN - horas)}"})
             return alertas
-        difs = []
-        for t, r in (("t_ingreso", "r_ingreso"), ("t_salida", "r_salida")):
-            a, b = _en_minutos(fila.get(t)), _en_minutos(fila.get(r))
-            if a is not None and b is not None:
-                difs.append(abs(a - b))
+        d_in, d_out = _desvios(fila)
+        difs = [abs(d) for d in (d_in, d_out) if d is not None]
         if any(d > TOLERANCIA_CAMBIO_MIN for d in difs):
-            alertas.append({"codigo": ALERTA_CAMBIO_HORARIO, "texto": "Debe realizar cambio de horario"})
+            if _se_quedo_de_mas(d_in, d_out) and horas > JORNADA_MIN:
+                # Cumplió y la diferencia es porque entró antes y/o salió después: no es un cambio de horario
+                alertas.append({"codigo": ALERTA_HORAS_DE_MAS, "texto": f"Hizo {duracion(horas - JORNADA_MIN)} de más"})
+            else:
+                alertas.append({"codigo": ALERTA_CAMBIO_HORARIO, "texto": "Debe realizar cambio de horario"})
     else:
         if horas < JORNADA_MIN:
             alertas.append({"codigo": ALERTA_ERROR_FICHAR, "texto": "Error al fichar"})
@@ -183,6 +212,12 @@ def detalle_alerta(codigo: str, fila: dict) -> str:
             if d and a is not None and b is not None and abs(a - b) > TOLERANCIA_CAMBIO_MIN:
                 partes.append(d)
         return f"{teorico}, {real}: " + " y ".join(partes) + " (más de 1 h de diferencia)."
+    if codigo == ALERTA_HORAS_DE_MAS:
+        partes = [p for p in (_diferencia(fila.get("r_ingreso"), fila.get("t_ingreso"), "ingreso"),
+                              _diferencia(fila.get("r_salida"), fila.get("t_salida"), "salida")) if p]
+        extra = duracion(max(0, (horas or 0) - JORNADA_MIN))
+        return (f"Cumplió la jornada: trabajó {trabajadas} h, {extra} de más ({teorico}, {real}: {' y '.join(partes)}). "
+                "No suma al banco de horas, pero compensa lo que deba.")
     if codigo == ALERTA_ERROR_FICHAR:
         return f"No convocado: registró {trabajadas} h, menos de las 7:00 h ({real})."
     if codigo == ALERTA_FALTA_REGISTRO:

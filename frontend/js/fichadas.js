@@ -140,7 +140,10 @@ async function fiAnalizar(archivo) {
         const total = FI.analisis.resumen.reduce((n, r) => n + r.cantidad, 0);
         const sinControl = FI.analisis.sin_control ? `, ${FI.analisis.sin_control} sin control por Cód Reg` : "";
         const b = FI.analisis.banco || { sumados: 0, ya_sumados: 0 };
-        const banco = b.sumados ? ` Banco de horas: se sumaron ${b.sumados} deuda(s) (${b.total}).`
+        const partes = [];
+        if (b.sumados) partes.push(`se sumaron ${b.sumados} deuda(s) (${b.total})`);
+        if (b.compensados) partes.push(`${b.compensados} compensaron deuda con horas de más (${b.total_compensado})`);
+        const banco = partes.length ? ` Banco de horas: ${partes.join(" y ")}.`
             : b.ya_sumados ? " Banco de horas: ese día ya estaba sumado." : "";
         fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas${sinControl}.${banco}`);
     } catch (e) {

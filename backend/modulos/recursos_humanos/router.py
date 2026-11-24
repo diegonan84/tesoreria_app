@@ -705,9 +705,10 @@ async def analizar_fichadas(request: Request, archivo: UploadFile = File(...),
         })
     filas.sort(key=lambda x: x["nombre"].upper())
     banco = sumar_deudas_al_banco(db, datos, archivo.filename, actual, simular=False)
-    if banco["sumados"]:
+    if banco["sumados"] or banco["compensados"]:
         rango = _fecha_corta(datos["desde"]) + ("" if datos["desde"] == datos["hasta"] else f" al {_fecha_corta(datos['hasta'])}")
-        _auditar(db, actual, request, f"Banco de horas: se sumaron {banco['sumados']} deudas de fichadas del {rango} ({archivo.filename})")
+        _auditar(db, actual, request, f"Banco de horas: {banco['sumados']} deudas sumadas y {banco['compensados']} compensadas "
+                                      f"con horas de más, fichadas del {rango} ({archivo.filename})")
     return {
         "archivo": archivo.filename, "hoja": datos["hoja"], "desde": datos["desde"], "hasta": datos["hasta"],
         "filas": filas, "avisos": datos["avisos"], "sin_control": sin_control,
@@ -1094,17 +1095,44 @@ async def sumar_fichadas_al_banco(
 
 
 def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str], actual: dict, simular: bool) -> dict:
-    """Suma al banco lo que debe cada persona según el Excel de asistencia (convocados con menos de 7 h).
-    Cada persona y fecha se suma UNA sola vez: volver a procesar el mismo día no duplica."""
+    """Actualiza el banco con el Excel de asistencia (una sola vez por persona y fecha):
+      - convocados con menos de 7 h → suma lo que deben;
+      - convocados con más de 7 h → las horas de más compensan la deuda que tengan, sin dejar saldo a favor."""
     usuarios = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User)}
     ya = {(m.cuil, m.fecha) for m in db.query(BancoHorasMovimiento.cuil, BancoHorasMovimiento.fecha).filter(
         BancoHorasMovimiento.tipo == "FICHADA",
         BancoHorasMovimiento.fecha >= datos["desde"], BancoHorasMovimiento.fecha <= datos["hasta"])}
     sumados, repetidos, detalle, total = 0, 0, [], 0
-    for f in datos["filas"]:
+    compensados, total_compensado = 0, 0
+    saldos = {c: int(m or 0) for c, m in db.query(BancoHorasMovimiento.cuil, func.sum(BancoHorasMovimiento.minutos))
+              .group_by(BancoHorasMovimiento.cuil)}
+    for f in sorted(datos["filas"], key=lambda x: x["fecha"]):
         cuil = excel_home_office.solo_digitos(f["cuil"])
         u = usuarios.get(cuil)
         if excel_fichadas.cod_reg_sin_control(f["cod_reg"], u.cod_reg if u else None):
+            continue
+        extra = excel_fichadas.minutos_de_mas(f)
+        debe_antes = -saldos.get(cuil, 0)
+        if extra and debe_antes > 0:
+            # Horas de más que compensan deuda (nunca más de lo que debe)
+            if (cuil, f["fecha"]) in ya:
+                repetidos += 1
+                continue
+            ya.add((cuil, f["fecha"]))
+            compensa = min(extra, debe_antes)
+            saldos[cuil] = saldos.get(cuil, 0) + compensa
+            compensados += 1
+            total_compensado += compensa
+            nombre = f"{u.apellido}, {u.nombre}" if u else f["nombre"]
+            detalle.append({"cuil": cuil, "nombre": nombre, "fecha": f["fecha"],
+                            "compensa": excel_fichadas.duracion(compensa)})
+            if not simular:
+                db.add(BancoHorasMovimiento(
+                    cuil=cuil, usuario_id=u.id if u else None, nombre=nombre[:150], tipo="FICHADA", fecha=f["fecha"],
+                    minutos=compensa,
+                    detalle=f"Hizo {excel_fichadas.hhmm(f['cant_horas_min'] or 0)} h: compensa {excel_fichadas.duracion(compensa)} con horas de más",
+                    archivo=(archivo_nombre or "")[:200], creado_por_id=actual.get("id"),
+                ))
             continue
         if not any(a["codigo"] == excel_fichadas.ALERTA_COMPENSAR for a in f["alertas"]):
             continue
@@ -1112,6 +1140,7 @@ def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str
         if (cuil, f["fecha"]) in ya:
             repetidos += 1
             continue
+        saldos[cuil] = saldos.get(cuil, 0) - debe
         ya.add((cuil, f["fecha"]))
         sumados += 1
         total += debe
@@ -1125,11 +1154,13 @@ def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str
             ))
     if simular:
         db.rollback()
-    elif sumados:
+    elif sumados or compensados:
         db.commit()
     return {
         "simulacion": simular, "archivo": archivo_nombre, "desde": datos["desde"], "hasta": datos["hasta"],
         "sumados": sumados, "ya_sumados": repetidos, "total": excel_fichadas.duracion(total) if total else "0 minutos",
+        "compensados": compensados,
+        "total_compensado": excel_fichadas.duracion(total_compensado) if total_compensado else "0 minutos",
         "detalle": detalle,
     }
 
