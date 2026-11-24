@@ -48,6 +48,7 @@
         #fi-resultado ul { margin: 6px 0 0 18px; max-height: 160px; overflow-y: auto; }
         .fi-botones { margin-top: 10px; display: flex; gap: 8px; }
         .fi-error { color: #b3261e; }
+        .fi-aviso-banco { background: #fff8e1; border: 1px solid #e6cf7a; color: #6d5600; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; }
         .bh-debe { color: #b3261e; font-weight: 600; }
         .bh-favor { color: #2e7d32; font-weight: 600; }
         #fi-toast { position: fixed; bottom: 24px; right: 24px; background: #1a3644; color: #fff; padding: 10px 16px;
@@ -67,7 +68,8 @@
         <p>Elegí el Excel de <b>Asistencia biométrico</b> con <b>Importar Excel de fichadas</b> y revisá las alertas de cada persona.
            El análisis es <b>solo de consulta</b>: no se guarda nada, así que podés analizar el mismo archivo todas las veces que quieras.
            Al analizar, lo que debe cada persona se suma solo al <b>banco de horas</b>; cada persona y día se suma una sola vez,
-           así que volver a analizar el mismo archivo no duplica.
+           así que volver a analizar el mismo archivo no duplica. Los días se cargan en orden: un Excel con fecha anterior
+           al último día cargado en el banco se puede consultar, pero no modifica el banco de horas.
            Si el día tiene una incidencia cargada (licencia, etc.), no se marca alerta. Los Cód Reg <b>Autoridades Superiores</b> y <b>Externo</b> no se controlan.</p>
 
         <div class="card fi-card">

@@ -1105,7 +1105,8 @@ async def sumar_fichadas_al_banco(
 
 
 def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str], actual: dict, simular: bool) -> dict:
-    """Actualiza el banco con el Excel de asistencia (una sola vez por persona y fecha):
+    """Actualiza el banco con el Excel de asistencia (una sola vez por persona y fecha, y en orden:
+    los días anteriores al último ya cargado en el banco no se tocan, quedan solo para consulta):
       - convocados con menos de 7 h → suma lo que deben;
       - convocados con más de 7 h → las horas de más compensan la deuda que tengan, sin dejar saldo a favor."""
     usuarios = {excel_home_office.solo_digitos(u.cuil): u for u in db.query(User)}
@@ -1114,9 +1115,15 @@ def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str
         BancoHorasMovimiento.fecha >= datos["desde"], BancoHorasMovimiento.fecha <= datos["hasta"])}
     sumados, repetidos, detalle, total = 0, 0, [], 0
     compensados, total_compensado = 0, 0
+    # El banco avanza en orden: un Excel con fecha anterior al último día cargado es solo consulta
+    ultima = db.query(func.max(BancoHorasMovimiento.fecha)).filter(BancoHorasMovimiento.tipo == "FICHADA").scalar()
+    anteriores = 0
     saldos = {c: int(m or 0) for c, m in db.query(BancoHorasMovimiento.cuil, func.sum(BancoHorasMovimiento.minutos))
               .group_by(BancoHorasMovimiento.cuil)}
     for f in sorted(datos["filas"], key=lambda x: x["fecha"]):
+        if ultima and f["fecha"] < ultima:
+            anteriores += 1
+            continue
         cuil = excel_home_office.solo_digitos(f["cuil"])
         u = usuarios.get(cuil)
         if excel_fichadas.cod_reg_sin_control(f["cod_reg"], u.cod_reg if u else None):
@@ -1171,6 +1178,8 @@ def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str
         "sumados": sumados, "ya_sumados": repetidos, "total": excel_fichadas.duracion(total) if total else "0 minutos",
         "compensados": compensados,
         "total_compensado": excel_fichadas.duracion(total_compensado) if total_compensado else "0 minutos",
+        "ultima_fecha_banco": ultima, "filas_anteriores": anteriores,
+        "solo_consulta": bool(ultima) and anteriores == len(datos["filas"]),
         "detalle": detalle,
     }
 

@@ -139,8 +139,15 @@ async function fiAnalizar(archivo) {
         if (typeof bhCargar === "function") bhCargar();
         const sinUsuario = FI.analisis.filas.filter(f => !f.en_sistema);
         const avisos = FI.analisis.avisos;
-        if (sinUsuario.length || avisos.length) {
-            caja.innerHTML =
+        const bb = FI.analisis.banco || {};
+        const avisoBanco = bb.filas_anteriores
+            ? `<div class="fi-aviso-banco"><b>${bb.solo_consulta ? "Solo consulta." : "Atención."}</b>
+                 Fecha anterior a la última cargada en el banco de horas (${fiFecha(bb.ultima_fecha_banco)}):
+                 ${bb.solo_consulta ? "este Excel no modificó el banco." : `${bb.filas_anteriores} fila(s) de días anteriores no se sumaron al banco.`}
+                 El análisis y las alertas se muestran igual.</div>`
+            : "";
+        if (sinUsuario.length || avisos.length || avisoBanco) {
+            caja.innerHTML = avisoBanco +
                 (sinUsuario.length ? `<details><summary>${sinUsuario.length} persona(s) que no están como usuarios del sistema</summary><ul>${sinUsuario.map(f => `<li>${escapeHTML(f.nombre)} (${escapeHTML(f.cuil)})</li>`).join("")}</ul></details>` : "") +
                 (avisos.length ? `<details><summary>Avisos (${avisos.length})</summary><ul>${avisos.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul></details>` : "");
             caja.style.display = "block";
@@ -154,7 +161,8 @@ async function fiAnalizar(archivo) {
         const partes = [];
         if (b.sumados) partes.push(`se sumaron ${b.sumados} deuda(s) (${b.total})`);
         if (b.compensados) partes.push(`${b.compensados} compensaron deuda con horas de más (${b.total_compensado})`);
-        const banco = partes.length ? ` Banco de horas: ${partes.join(" y ")}.`
+        const banco = b.solo_consulta ? " Solo consulta: no se modificó el banco de horas."
+            : partes.length ? ` Banco de horas: ${partes.join(" y ")}.`
             : b.ya_sumados ? " Banco de horas: ese día ya estaba sumado." : "";
         fiToast(`Analizado: ${FI.analisis.filas.length} personas, ${total} alertas${sinControl}.${banco}`);
     } catch (e) {
