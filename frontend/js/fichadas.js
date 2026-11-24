@@ -57,7 +57,13 @@ function fiMensaje(texto) {
 }
 
 function fiResumen(resumen) {
-    document.getElementById("fi-resumen").innerHTML = resumen.map(r => `
+    // Primer chip: mostrar todas las fichadas (sin filtro de alertas)
+    const total = FI.analisis ? FI.analisis.filas.length : 0;
+    const todas = !FI.alerta && !document.getElementById("f-solo-alertas").checked;
+    document.getElementById("fi-resumen").innerHTML = `
+        <button type="button" class="fi-chip todas ${todas ? "activo" : ""}" data-todas="1" title="Ver todas las personas del Excel, con o sin alertas">
+            Mostrar todas las fichadas<b>${total}</b>
+        </button>` + resumen.map(r => `
         <button type="button" class="fi-chip ${FI.alerta === r.codigo ? "activo" : ""}" data-alerta="${r.codigo}">
             <span class="fi-alerta ${r.codigo}" style="margin:0">${escapeHTML(r.nombre)}</span><b>${r.cantidad}</b>
         </button>`).join("");
@@ -116,7 +122,8 @@ async function fiAnalizar(archivo) {
     const caja = document.getElementById("fi-resultado");
     const boton = document.getElementById("fi-importar");
     boton.disabled = true;
-    boton.textContent = "Analizando…";
+    const textoBoton = boton.querySelector("span");
+    textoBoton.textContent = "Analizando…";
     try {
         const datos = new FormData();
         datos.append("archivo", archivo);
@@ -150,16 +157,23 @@ async function fiAnalizar(archivo) {
         fiToast(e.message || "No se pudo conectar con el servidor.", true);
     }
     boton.disabled = false;
-    boton.textContent = "Analizar Excel";
+    textoBoton.textContent = "Importar Excel de fichadas";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("f-q").addEventListener("input", fiPintar);
     document.getElementById("f-solo-alertas").addEventListener("change", fiPintar);
     document.getElementById("fi-resumen").addEventListener("click", e => {
+        if (e.target.closest("[data-todas]")) {
+            FI.alerta = null;
+            document.getElementById("f-solo-alertas").checked = false;
+            fiPintar();
+            return;
+        }
         const chip = e.target.closest("[data-alerta]");
         if (!chip) return;
         FI.alerta = FI.alerta === chip.dataset.alerta ? null : chip.dataset.alerta;
+        if (FI.alerta) document.getElementById("f-solo-alertas").checked = true;
         fiPintar();
     });
     document.getElementById("fi-importar").addEventListener("click", () => document.getElementById("fi-archivo").click());

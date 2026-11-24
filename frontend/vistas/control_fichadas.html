@@ -12,6 +12,18 @@
         .fi-chip { border: 1px solid #cfd8dc; border-radius: 16px; padding: 4px 12px; background: #fff; cursor: pointer; font-size: 0.9em; }
         .fi-chip b { margin-left: 4px; }
         .fi-chip.activo { background: #1a3644; color: #fff; border-color: #1a3644; }
+        .fi-chip.todas { font-weight: 600; color: #1a3644; }
+        .fi-chip.todas.activo { color: #fff; }
+        /* Botones principales de la pantalla */
+        .fi-btn { display: inline-flex; align-items: center; gap: 8px; border: none; border-radius: 8px; padding: 10px 18px;
+                  font-weight: 600; font-size: 0.95em; cursor: pointer; color: #fff; background: #58a598;
+                  box-shadow: 0 2px 6px rgba(26, 54, 68, .18); transition: background .15s, transform .1s, box-shadow .15s; }
+        .fi-btn:hover { background: #4a9387; box-shadow: 0 4px 10px rgba(26, 54, 68, .25); }
+        .fi-btn:active { transform: translateY(1px); }
+        .fi-btn:disabled { opacity: .6; cursor: wait; }
+        .fi-btn svg { flex-shrink: 0; }
+        .fi-btn.secundario { background: #fff; color: #1a3644; border: 1px solid #b8c4c9; box-shadow: none; }
+        .fi-btn.secundario:hover { background: #f3f6f7; }
         .fi-tabla { width: 100%; border-collapse: collapse; font-size: 0.9em; }
         .fi-tabla th, .fi-tabla td { padding: 6px 8px; border-bottom: 1px solid #e6eaec; text-align: left; vertical-align: top; }
         .fi-tabla thead th { background: #f3f6f7; position: sticky; top: 0; }
@@ -52,7 +64,7 @@
 
     <main class="dashboard-body">
         <h2>Control de Fichadas</h2>
-        <p>Elegí el Excel de <b>Asistencia biométrico</b> con <b>Analizar Excel</b> y revisá las alertas de cada persona.
+        <p>Elegí el Excel de <b>Asistencia biométrico</b> con <b>Importar Excel de fichadas</b> y revisá las alertas de cada persona.
            El análisis es <b>solo de consulta</b>: no se guarda nada, así que podés analizar el mismo archivo todas las veces que quieras.
            Al analizar, lo que debe cada persona se suma solo al <b>banco de horas</b>; cada persona y día se suma una sola vez,
            así que volver a analizar el mismo archivo no duplica.
@@ -65,7 +77,7 @@
                 </label>
                 <label><input type="checkbox" id="f-solo-alertas" checked> Solo con alertas</label>
                 <div class="fi-acciones">
-                    <button type="button" id="fi-importar">Analizar Excel</button>
+                    <button type="button" id="fi-importar" class="fi-btn" title="Elegí el Excel de Asistencia biométrico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M8 13l3 4M11 13l-3 4"></path><line x1="14" y1="13" x2="16" y2="13"></line><line x1="14" y1="17" x2="16" y2="17"></line></svg><span>Importar Excel de fichadas</span></button>
                     <input type="file" id="fi-archivo" accept=".xlsx" style="display:none;">
                 </div>
             </div>
@@ -108,8 +120,8 @@
                     <input type="search" id="bh-q" placeholder="Nombre, apellido o CUIL…" style="width:100%;">
                 </label>
                 <div class="fi-acciones">
-                    <button type="button" id="bh-exportar" title="Planilla con lo que debe cada persona y la deuda de cada día">Exportar banco de horas</button>
-                    <button type="button" id="bh-importar" title="Excel con Nombre, Apellido, CUIL y Saldo Hs (lo que debe, en H:MM)">Importar saldo inicial</button>
+                    <button type="button" id="bh-exportar" class="fi-btn secundario" title="Planilla con lo que debe cada persona y la deuda de cada día"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>Exportar banco de horas</span></button>
+                    <button type="button" id="bh-importar" class="fi-btn" title="Excel con Nombre, Apellido, CUIL y Saldo Hs (lo que debe, en H:MM)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg><span>Importar saldo inicial</span></button>
                     <input type="file" id="bh-archivo" accept=".xlsx" style="display:none;">
                 </div>
             </div>
