@@ -1,7 +1,7 @@
 """rrhh: archivos de fichadas importados y asistencia diaria con alertas
 
 Revision ID: b9d4f2a6c8e1
-Revises: b9c4e1d7f2a6
+Revises: a7e2b4c8f6d3
 Create Date: 2026-11-17
 
 """
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'b9d4f2a6c8e1'
-down_revision = 'b9c4e1d7f2a6'  # va después de la migración de Mesa de Ayuda
+down_revision = 'a7e2b4c8f6d3'
 branch_labels = None
 depends_on = None
 
