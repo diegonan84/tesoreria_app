@@ -96,7 +96,10 @@
 
         <details class="card fi-card" style="overflow-x:auto;">
             <summary style="cursor:pointer; font-weight:600;">Detalle por persona (teórico, real, horas e incidencia)</summary>
-            <div class="fi-sub" id="fi-periodo" style="margin:8px 0;"></div>
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:8px 0;">
+                <span class="fi-sub" id="fi-periodo"></span>
+                <button type="button" id="fi-detalle-todas" class="fi-chip todas activo" style="margin-left:auto;">Mostrar todas las fichadas</button>
+            </div>
             <table class="fi-tabla">
                 <thead>
                     <tr>

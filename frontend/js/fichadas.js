@@ -4,7 +4,8 @@
 // ============================================================================
 
 // analisis: el último Excel analizado (solo en pantalla, no se guarda)
-const FI = { alerta: null, analisis: null };
+// detalleTodas: el detalle por persona muestra todas las fichadas del Excel (no solo las del filtro)
+const FI = { alerta: null, analisis: null, detalleTodas: true };
 
 function fiHeaders() {
     return { "Authorization": `Bearer ${localStorage.getItem("token")}` };
@@ -57,13 +58,7 @@ function fiMensaje(texto) {
 }
 
 function fiResumen(resumen) {
-    // Primer chip: mostrar todas las fichadas (sin filtro de alertas)
-    const total = FI.analisis ? FI.analisis.filas.length : 0;
-    const todas = !FI.alerta && !document.getElementById("f-solo-alertas").checked;
-    document.getElementById("fi-resumen").innerHTML = `
-        <button type="button" class="fi-chip todas ${todas ? "activo" : ""}" data-todas="1" title="Ver todas las personas del Excel, con o sin alertas">
-            Mostrar todas las fichadas<b>${total}</b>
-        </button>` + resumen.map(r => `
+    document.getElementById("fi-resumen").innerHTML = resumen.map(r => `
         <button type="button" class="fi-chip ${FI.alerta === r.codigo ? "activo" : ""}" data-alerta="${r.codigo}">
             <span class="fi-alerta ${r.codigo}" style="margin:0">${escapeHTML(r.nombre)}</span><b>${r.cantidad}</b>
         </button>`).join("");
@@ -83,8 +78,17 @@ function fiPintar() {
         `"${r.archivo}" · ${fiFecha(r.desde)}${r.desde === r.hasta ? "" : " al " + fiFecha(r.hasta)} · ${r.filas.length} personas`;
     fiResumen(r.resumen);
     fiListadoAlertas(filas);
-    if (!filas.length) { fiMensaje("No hay filas para mostrar con estos filtros."); return; }
-    document.getElementById("tabla-fichadas").innerHTML = filas.map(f => `
+
+    // Detalle por persona: con "Mostrar todas las fichadas" ignora los filtros de alertas (solo aplica la búsqueda)
+    const todas = r.filas.filter(f => !q || `${f.nombre} ${f.cuil}`.toLowerCase().includes(q));
+    const detalle = FI.detalleTodas ? todas : filas;
+    const boton = document.getElementById("fi-detalle-todas");
+    boton.textContent = FI.detalleTodas
+        ? `Mostrar solo las del filtro (${filas.length})`
+        : `Mostrar todas las fichadas (${todas.length})`;
+    boton.classList.toggle("activo", !!FI.detalleTodas);
+    if (!detalle.length) { fiMensaje("No hay filas para mostrar con estos filtros."); return; }
+    document.getElementById("tabla-fichadas").innerHTML = detalle.map(f => `
         <tr>
             <td>${escapeHTML(f.nombre)}<br><span class="fi-sub">${escapeHTML(f.sector || "")}</span></td>
             <td>${fiFecha(f.fecha)}</td>
@@ -164,16 +168,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("f-q").addEventListener("input", fiPintar);
     document.getElementById("f-solo-alertas").addEventListener("change", fiPintar);
     document.getElementById("fi-resumen").addEventListener("click", e => {
-        if (e.target.closest("[data-todas]")) {
-            FI.alerta = null;
-            document.getElementById("f-solo-alertas").checked = false;
-            fiPintar();
-            return;
-        }
         const chip = e.target.closest("[data-alerta]");
         if (!chip) return;
         FI.alerta = FI.alerta === chip.dataset.alerta ? null : chip.dataset.alerta;
         if (FI.alerta) document.getElementById("f-solo-alertas").checked = true;
+        fiPintar();
+    });
+    document.getElementById("fi-detalle-todas").addEventListener("click", () => {
+        FI.detalleTodas = !FI.detalleTodas;
         fiPintar();
     });
     document.getElementById("fi-importar").addEventListener("click", () => document.getElementById("fi-archivo").click());
