@@ -1184,6 +1184,33 @@ def sumar_deudas_al_banco(db: Session, datos: dict, archivo_nombre: Optional[str
     }
 
 
+class LimpiarBancoIn(schemas.BaseModel):
+    confirmacion: str              # hay que escribir BORRAR
+    todo: bool = True              # True: todo el banco (saldos iniciales y ajustes incluidos); False: solo lo sumado desde fichadas
+
+
+@router.post("/banco-horas/limpiar")
+def limpiar_banco_horas(datos: LimpiarBancoIn, request: Request, db: Session = Depends(get_db), actual=Depends(_fichadas)):
+    """Borra los registros del control de fichadas para volver a cargar todo como la primera vez:
+    el banco de horas (todo, o solo lo sumado desde los Excel de fichadas) y las fichadas guardadas.
+    Solo Administrador, y hay que escribir BORRAR. No se puede deshacer (conviene exportar antes)."""
+    if "Administrador" not in (actual.get("roles") or []):
+        raise HTTPException(status_code=403, detail="Solo un Administrador puede limpiar los registros de fichadas.")
+    if (datos.confirmacion or "").strip().upper() != "BORRAR":
+        raise HTTPException(status_code=400, detail="Para confirmar hay que escribir BORRAR.")
+    banco = db.query(BancoHorasMovimiento)
+    if not datos.todo:
+        banco = banco.filter(BancoHorasMovimiento.tipo == "FICHADA")
+    movimientos = banco.delete(synchronize_session=False)
+    fichadas = db.query(FichadaDiaria).delete(synchronize_session=False)
+    archivos = db.query(FichadaArchivo).delete(synchronize_session=False)
+    db.commit()
+    alcance = "todo el banco de horas" if datos.todo else "lo sumado desde fichadas (se dejaron saldos iniciales y ajustes)"
+    _auditar(db, actual, request, f"Limpieza de registros de fichadas: {movimientos} movimientos del banco ({alcance}), "
+                                  f"{fichadas} fichadas guardadas y {archivos} archivos")
+    return {"movimientos": movimientos, "fichadas": fichadas, "archivos": archivos, "todo": datos.todo}
+
+
 @router.post("/banco-horas/ajuste")
 def ajuste_banco_horas(datos: AjusteBancoIn, request: Request, db: Session = Depends(get_db), actual=Depends(_fichadas)):
     """Ajuste manual: positivo compensa horas (baja la deuda), negativo agrega deuda."""

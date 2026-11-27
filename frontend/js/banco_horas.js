@@ -209,7 +209,48 @@ async function bhExportar(boton) {
     boton.disabled = false;
 }
 
+// ---- Limpiar registros (solo Administrador): borra el banco para volver a cargarlo desde cero ----
+function bhLimpiar() {
+    const caja = bhCaja(`<b class="fi-error">Limpiar registros del control de fichadas</b><br>
+        Esto <b>no se puede deshacer</b>. Antes conviene apretar <b>Exportar banco de horas</b> para guardar una copia.
+        <div style="margin:10px 0;">
+            <label><input type="radio" name="bh-alcance" value="todo" checked> <b>Todo el banco de horas</b>
+                (saldos iniciales, deudas sumadas desde fichadas y ajustes). Después volvés a importar el saldo inicial y las fichadas día por día.</label><br>
+            <label><input type="radio" name="bh-alcance" value="fichadas"> <b>Solo lo sumado desde los Excel de fichadas</b>
+                (deja saldos iniciales y ajustes). Después volvés a importar las fichadas día por día.</label>
+        </div>
+        Para confirmar escribí <b>BORRAR</b>: <input type="text" id="bh-confirmar" style="width:110px;" autocomplete="off">
+        <div class="fi-botones">
+            <button type="button" id="bh-confirmar-limpiar" class="fi-btn peligro" disabled>Borrar registros</button>
+            <button type="button" id="bh-cancelar">Cancelar</button>
+        </div>`);
+    caja.scrollIntoView({ behavior: "smooth", block: "start" });
+    const input = caja.querySelector("#bh-confirmar");
+    const borrar = caja.querySelector("#bh-confirmar-limpiar");
+    input.addEventListener("input", () => { borrar.disabled = input.value.trim().toUpperCase() !== "BORRAR"; });
+    caja.querySelector("#bh-cancelar").onclick = () => bhCaja("");
+    borrar.onclick = async () => {
+        borrar.disabled = true;
+        const todo = caja.querySelector('input[name="bh-alcance"]:checked').value === "todo";
+        try {
+            const res = await fetch("/api/rrhh/banco-horas/limpiar", {
+                method: "POST", headers: bhHeaders(true),
+                body: JSON.stringify({ confirmacion: input.value, todo }),
+            });
+            if (!res.ok) throw new Error(await bhError(res, "No se pudieron limpiar los registros."));
+            const r = await res.json();
+            bhCaja("");
+            fiToast(`Registros borrados: ${r.movimientos} movimiento(s) del banco${r.fichadas ? ` y ${r.fichadas} fichada(s) guardada(s)` : ""}.`);
+            await bhCargar();
+        } catch (e) {
+            borrar.disabled = false;
+            fiToast(e.message, true);
+        }
+    };
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("bh-limpiar").addEventListener("click", bhLimpiar);
     document.getElementById("bh-exportar").addEventListener("click", e => bhExportar(e.currentTarget));
     document.getElementById("bh-importar").addEventListener("click", () => document.getElementById("bh-archivo").click());
     document.getElementById("bh-archivo").addEventListener("change", e => { bhSaldoInicial(e.target.files[0]); e.target.value = ""; });
